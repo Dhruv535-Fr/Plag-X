@@ -16,6 +16,8 @@ import {
   CheckCircle,
   AlertTriangle,
   Eye,
+  XCircle,
+  Clock,
 } from "lucide-react";
 
 interface AnalysisResult {
@@ -26,6 +28,15 @@ interface AnalysisResult {
   similarity: number;
   method: string;
   status: string;
+  error?: string;
+  isError?: boolean;
+}
+
+interface AnalysisError {
+  file1: string;
+  file2: string;
+  error: string;
+  language: string;
 }
 
 export default function Upload() {
@@ -35,6 +46,10 @@ export default function Upload() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
+  const [analysisErrors, setAnalysisErrors] = useState<AnalysisError[]>([]);
+  const [currentAnalysis, setCurrentAnalysis] = useState<string>("");
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const getFileLanguage = (filename: string): string => {
     const extension = filename.split(".").pop()?.toLowerCase() || "";
@@ -77,20 +92,40 @@ export default function Upload() {
   };
 
   const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
+    (acceptedFiles: File[], rejectedFiles: any[]) => {
+      setUploadError(null); // Clear previous errors
+      
       const supportedExtensions = getSupportedExtensions();
       const validFiles = acceptedFiles.filter((file) => {
         const extension = file.name.split(".").pop()?.toLowerCase() || "";
         return supportedExtensions.includes(extension);
       });
 
+      // Handle rejected files
+      if (rejectedFiles.length > 0) {
+        const errors = rejectedFiles.map(rejection => 
+          rejection.errors?.map((error: any) => error.message).join(", ") || "File rejected"
+        );
+        setUploadError(`Some files were rejected: ${errors.join("; ")}`);
+      }
+
+      // Handle unsupported file types
       if (validFiles.length !== acceptedFiles.length) {
-        alert(
-          "Some files were not uploaded. Only C++, Java, and Python files are supported."
+        const unsupportedFiles = acceptedFiles.filter(file => !validFiles.includes(file));
+        const unsupportedNames = unsupportedFiles.map(f => f.name).join(", ");
+        setUploadError(
+          `Unsupported file types detected: ${unsupportedNames}. Only C++, Java, and Python files are supported.`
         );
       }
 
-      setUploadedFiles((prev) => [...prev, ...validFiles]);
+      if (validFiles.length > 0) {
+        const totalFiles = uploadedFiles.length + validFiles.length;
+        if (totalFiles > 10) {
+          setUploadError(`Too many files. Maximum 10 files allowed. You currently have ${uploadedFiles.length} files.`);
+          return;
+        }
+        setUploadedFiles((prev) => [...prev, ...validFiles]);
+      }
     },
     [setUploadedFiles]
   );
@@ -99,17 +134,34 @@ export default function Upload() {
     onDrop,
     multiple: true,
     maxSize: 10 * 1024 * 1024, // 10MB
+    maxFiles: 10, // Limit to 10 files to prevent too many comparisons
   });
 
   const removeFile = (index: number) => {
     setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+    // Clear errors when files change
+    setUploadError(null);
+    setSuccessMessage(null);
+  };
+
+  const clearAllFiles = () => {
+    setUploadedFiles([]);
+    setAnalysisResults([]);
+    setAnalysisErrors([]);
+    setUploadError(null);
+    setSuccessMessage(null);
   };
 
   const handleAnalysis = async () => {
     if (uploadedFiles.length < 2) {
-      alert("Please upload at least 2 files for comparison");
+      setUploadError("Please upload at least 2 files for comparison");
       return;
     }
+
+    // Clear previous errors and results
+    setUploadError(null);
+    setAnalysisErrors([]);
+    setSuccessMessage(null);
 
     // Group files by extension
     const fileGroups = groupFilesByExtension(uploadedFiles);
@@ -120,7 +172,7 @@ export default function Upload() {
     );
 
     if (groupsWithMultipleFiles.length === 0) {
-      alert(
+      setUploadError(
         "Please upload at least 2 files of the same type (same extension) for comparison"
       );
       return;
@@ -129,9 +181,11 @@ export default function Upload() {
     setIsAnalyzing(true);
     setAnalysisProgress(0);
     setAnalysisResults([]);
+    setCurrentAnalysis("");
 
     try {
       const allResults: AnalysisResult[] = [];
+      const allErrors: AnalysisError[] = [];
       let completedComparisons = 0;
       let totalComparisons = 0;
 
@@ -151,6 +205,8 @@ export default function Upload() {
           for (let i = 0; i < files.length - 1; i++) {
             for (let j = i + 1; j < files.length; j++) {
               try {
+                setCurrentAnalysis(`Analyzing ${files[i].name} vs ${files[j].name}`);
+                
                 const formData = new FormData();
                 formData.append("files", files[i]);
                 formData.append("files", files[j]);
@@ -164,12 +220,19 @@ export default function Upload() {
                   headers: {
                     "Content-Type": "multipart/form-data",
                   },
+                  timeout: 120000, // 2 minute timeout for analysis
                 });
 
-                if (response.data.success) {
+                if (response.data.success && response.data.data) {
                   const similarity = response.data.data.similarity || 0;
+                  const reportId = response.data.data.reportId;
+                  
+                  if (!reportId) {
+                    throw new Error("No report ID returned from server");
+                  }
+                  
                   allResults.push({
-                    id: response.data.data.reportId || `${Date.now()}-${i}-${j}`,
+                    id: reportId,
                     file1: files[i].name,
                     file2: files[j].name,
                     language: getFileLanguage(files[i].name),
@@ -182,41 +245,83 @@ export default function Upload() {
                         ? "Medium Risk"
                         : "Low Risk",
                   });
+                } else {
+                  throw new Error(response.data.message || "Analysis failed - no data returned");
                 }
-              } catch (error) {
+              } catch (error: any) {
                 console.error(
                   `Error analyzing ${files[i].name} vs ${files[j].name}:`,
                   error
                 );
-                // Continue with other comparisons even if one fails
+                
+                let errorMessage = "Unknown error occurred";
+                if (error.response?.status === 429) {
+                  errorMessage = "Too many requests - server is busy. Please try again later.";
+                } else if (error.response?.data?.message) {
+                  errorMessage = error.response.data.message;
+                } else if (error.message) {
+                  errorMessage = error.message;
+                } else if (error.code === 'ECONNABORTED') {
+                  errorMessage = "Request timeout - analysis took too long";
+                } else if (error.response?.status === 413) {
+                  errorMessage = "Files too large";
+                } else if (error.response?.status >= 500) {
+                  errorMessage = "Server error - please try again";
+                }
+                
+                allErrors.push({
+                  file1: files[i].name,
+                  file2: files[j].name,
+                  error: errorMessage,
+                  language: getFileLanguage(files[i].name),
+                });
               }
 
               completedComparisons++;
               setAnalysisProgress((completedComparisons / totalComparisons) * 100);
+              
+              // Add a small delay between requests to prevent rate limiting
+              if (completedComparisons < totalComparisons) {
+                await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+              }
             }
           }
         }
       }
 
       setAnalysisResults(allResults);
+      setAnalysisErrors(allErrors);
 
+      // Set final status message
+      setCurrentAnalysis("");
+      
       if (allResults.length > 0) {
-        alert(
-          `Analysis completed! Found ${allResults.length} comparisons. Check the results below.`
-        );
-      } else {
-        alert(
-          "Analysis completed but no results were generated. Please try again."
+        setSuccessMessage(
+          `Analysis completed successfully! Generated ${allResults.length} comparison report${allResults.length > 1 ? 's' : ''}.`
         );
       }
-    } catch (error) {
+      
+      if (allResults.length === 0 && allErrors.length > 0) {
+        setUploadError("All analyses failed. Please check your files and try again.");
+      } else if (allErrors.length > 0) {
+        setUploadError(`${allErrors.length} comparison(s) failed, but ${allResults.length} succeeded.`);
+      }
+      
+    } catch (error: any) {
       console.error("Analysis failed:", error);
-      alert(
-        "Analysis failed. Please try again or check your internet connection."
-      );
+      
+      let errorMessage = "Analysis failed. Please try again.";
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setUploadError(errorMessage);
     } finally {
       setIsAnalyzing(false);
       setAnalysisProgress(0);
+      setCurrentAnalysis("");
     }
   };
 
@@ -234,6 +339,11 @@ export default function Upload() {
   };
 
   const viewReport = (resultId: string) => {
+    if (!resultId || resultId.includes('-')) {
+      // If it's a fallback ID (contains dash), show error
+      setUploadError("This report is not available. The analysis may have failed to save properly.");
+      return;
+    }
     navigate(`/reports/${resultId}`);
   };
 
@@ -282,9 +392,20 @@ export default function Upload() {
               {/* Uploaded Files */}
               {uploadedFiles.length > 0 && (
                 <div className="mt-6">
-                  <h4 className="font-medium text-foreground mb-3">
-                    Uploaded Files ({uploadedFiles.length})
-                  </h4>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium text-foreground">
+                      Uploaded Files ({uploadedFiles.length})
+                    </h4>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearAllFiles}
+                      disabled={isAnalyzing}
+                    >
+                      <X className="mr-1 h-3 w-3" />
+                      Clear All
+                    </Button>
+                  </div>
 
                   {/* Group files by extension */}
                   {Object.entries(fileGroups).map(([extension, files]) => (
@@ -346,16 +467,76 @@ export default function Upload() {
 
               {/* Analysis Progress */}
               {isAnalyzing && (
-                <div className="mt-4">
+                <div className="mt-4 space-y-3">
                   <div className="flex justify-between text-sm mb-2">
                     <span>Analysis Progress</span>
                     <span>{Math.round(analysisProgress)}%</span>
                   </div>
                   <Progress value={analysisProgress} className="h-2" />
+                  {currentAnalysis && (
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                      <Clock className="h-4 w-4 animate-spin" />
+                      <span>{currentAnalysis}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {/* Error Display */}
+          {uploadError && (
+            <Alert variant="destructive">
+              <XCircle className="h-4 w-4" />
+              <AlertDescription>{uploadError}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Success Message */}
+          {successMessage && (
+            <Alert variant="default" className="border-green-500/20 bg-green-500/5">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <AlertDescription className="text-green-700">{successMessage}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Analysis Errors */}
+          {analysisErrors.length > 0 && (
+            <Card className="bg-gradient-card shadow-card border-yellow-500/20">
+              <CardHeader>
+                <CardTitle className="text-foreground flex items-center">
+                  <AlertTriangle className="mr-2 h-4 w-4 text-yellow-500" />
+                  Analysis Issues ({analysisErrors.length})
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Some comparisons failed but others may have succeeded
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {analysisErrors.map((error, index) => (
+                    <div
+                      key={index}
+                      className="flex items-start justify-between p-3 bg-yellow-500/5 border border-yellow-500/20 rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <Badge variant="outline">{error.language}</Badge>
+                          <Badge variant="destructive">Failed</Badge>
+                        </div>
+                        <p className="text-sm font-medium">
+                          {error.file1} vs {error.file2}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Error: {error.error}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Analysis Results */}
           {analysisResults.length > 0 && (
@@ -449,7 +630,7 @@ export default function Upload() {
                 </div>
                 <div className="flex items-start space-x-2">
                   <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Maximum 20 files per analysis</span>
+                  <span>Maximum 10 files per analysis</span>
                 </div>
                 <div className="flex items-start space-x-2">
                   <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />

@@ -1,402 +1,123 @@
-const natural = require('natural');
-const diff = require('diff');
-const _ = require('lodash');
+const path = require('path');
+const fs = require('fs').promises;
+const jaccardLogic = require('./logic/jaccard');
+const astLogic = require('./logic/ast');
 
 class PlagiarismAnalyzer {
   constructor() {
-    this.tokenizer = new natural.WordTokenizer();
-    this.stemmer = natural.PorterStemmer;
-    this.tfidf = new natural.TfIdf();
+    this.comparisonLogicPath = path.join(__dirname, '../ComparisionLogic');
   }
 
-  // Main analysis function
-  async analyzeFiles(files) {
-    const startTime = Date.now();
-    
+  // Main analysis function - follows your described flow
+  async analyzeFiles(file1Path, file2Path, language) {
     try {
-      const analysis = {
-        overallSimilarityScore: 0,
-        detectedLanguages: [],
-        totalFiles: files.length,
-        suspiciousPairs: [],
-        statistics: {
-          totalLines: 0,
-          duplicatedLines: 0,
-          uniqueLines: 0,
-          codeBlocks: 0,
-          functions: 0,
-          variables: 0
-        }
-      };
-
-      // Preprocess files
-      const processedFiles = this.preprocessFiles(files);
+      console.log(`Starting analysis: ${file1Path} vs ${file2Path} (${language})`);
       
-      // Calculate statistics for each file
-      for (const file of processedFiles) {
-        const stats = this.calculateFileStatistics(file);
-        analysis.statistics.totalLines += stats.lines;
-        analysis.statistics.codeBlocks += stats.codeBlocks;
-        analysis.statistics.functions += stats.functions;
-        analysis.statistics.variables += stats.variables;
-        
-        if (!analysis.detectedLanguages.includes(file.language)) {
-          analysis.detectedLanguages.push(file.language);
-        }
+      // Verify files exist
+      const file1Exists = await this.fileExists(file1Path);
+      const file2Exists = await this.fileExists(file2Path);
+      
+      if (!file1Exists || !file2Exists) {
+        throw new Error(`Files not found: ${file1Path} (${file1Exists}), ${file2Path} (${file2Exists})`);
       }
-
-      // Compare all file pairs
-      const comparisons = [];
-      for (let i = 0; i < processedFiles.length; i++) {
-        for (let j = i + 1; j < processedFiles.length; j++) {
-          const similarity = await this.compareFiles(processedFiles[i], processedFiles[j]);
-          comparisons.push(similarity);
-          
-          if (similarity.similarityScore > 30) { // Threshold for suspicious pairs
-            analysis.suspiciousPairs.push(similarity);
+      
+      // Extract extensions and determine language
+      const ext1 = this.getFileExtension(file1Path);
+      const ext2 = this.getFileExtension(file2Path);
+      const actualLanguage = this.determineLanguage(ext1);
+      
+      console.log(`File extensions: ${ext1}, ${ext2}, Language: ${actualLanguage}`);
+      
+      // If different extensions, similarity is 0
+      if (!this.isSameLanguage(ext1, ext2)) {
+        console.log(`Different languages: ${ext1} vs ${ext2} - Similarity: 0`);
+        return {
+          similarity: 0,
+          details: {
+            jaccard: { similarity: 0, method: 'Jaccard', reason: 'Different file types' },
+            ast: { similarity: 0, method: 'AST', reason: 'Different file types' },
+            combined: { similarity: 0, method: 'Combined', reason: 'Different file types' }
+          }
+        };
+      }
+      
+      // ===== MAIN LOGIC FLOW =====
+      // 1. Call Jaccard Logic
+      console.log('Calling jaccardLogic...');
+      const jaccardScore = await jaccardLogic(file1Path, file2Path);
+      console.log('Jaccard result:', jaccardScore);
+      
+      // 2. Call AST Logic with language
+      console.log('Calling astLogic...');
+      const astScore = await astLogic(file1Path, file2Path, actualLanguage);
+      console.log('AST result:', astScore);
+      
+      // 3. Combine results into final JSON/object
+      const finalResult = {
+        file1: path.basename(file1Path),
+        file2: path.basename(file2Path),
+        similarity: (jaccardScore + astScore) / 2, // Average of both scores
+        details: {
+          jaccard: { similarity: jaccardScore, method: 'Jaccard' },
+          ast: { similarity: astScore, method: 'AST' },
+          combined: { 
+            similarity: (jaccardScore + astScore) / 2, 
+            method: 'Combined Average',
+            validMethods: 2
           }
         }
-      }
-
-      // Calculate overall similarity score
-      if (comparisons.length > 0) {
-        analysis.overallSimilarityScore = Math.round(
-          comparisons.reduce((sum, comp) => sum + comp.similarityScore, 0) / comparisons.length
-        );
-      }
-
-      // Calculate duplicated vs unique lines
-      const allLines = processedFiles.flatMap(file => file.normalizedLines);
-      const uniqueLines = new Set(allLines);
-      analysis.statistics.uniqueLines = uniqueLines.size;
-      analysis.statistics.duplicatedLines = analysis.statistics.totalLines - analysis.statistics.uniqueLines;
-
-      const processingTime = Date.now() - startTime;
-      
-      return {
-        analysis,
-        processingTime
       };
+      
+      console.log('Final analysis result:', finalResult);
+      return finalResult;
     } catch (error) {
-      throw new Error(`Analysis failed: ${error.message}`);
+      console.error('Analysis failed:', error);
+      throw error;
     }
   }
 
-  // Preprocess files for analysis
-  preprocessFiles(files) {
-    return files.map(file => {
-      const lines = file.content.split('\n');
-      const normalizedLines = this.normalizeCode(lines);
-      const tokens = this.tokenizeContent(file.content);
-      
-      return {
-        ...file,
-        lines,
-        normalizedLines,
-        tokens,
-        fingerprint: this.generateFingerprint(normalizedLines)
-      };
-    });
-  }
-
-  // Normalize code by removing whitespace, comments, and formatting
-  normalizeCode(lines) {
-    return lines.map(line => {
-      // Remove leading/trailing whitespace
-      let normalized = line.trim();
-      
-      // Remove single-line comments
-      normalized = normalized.replace(/\/\/.*$/, '');
-      normalized = normalized.replace(/#.*$/, '');
-      normalized = normalized.replace(/;.*$/, ''); // For some languages
-      
-      // Remove extra whitespace
-      normalized = normalized.replace(/\s+/g, ' ');
-      
-      // Convert to lowercase for comparison
-      normalized = normalized.toLowerCase();
-      
-      return normalized;
-    }).filter(line => line.length > 0); // Remove empty lines
-  }
-
-  // Tokenize content for semantic analysis
-  tokenizeContent(content) {
-    // Remove comments and strings
-    const cleanContent = content
-      .replace(/\/\*[\s\S]*?\*\//g, '') // Multi-line comments
-      .replace(/\/\/.*$/gm, '') // Single-line comments
-      .replace(/"[^"]*"/g, '') // Double quotes
-      .replace(/'[^']*'/g, '') // Single quotes
-      .replace(/`[^`]*`/g, ''); // Template literals
-
-    return this.tokenizer.tokenize(cleanContent.toLowerCase()) || [];
-  }
-
-  // Generate a fingerprint for quick similarity detection
-  generateFingerprint(normalizedLines) {
-    const combined = normalizedLines.join(' ');
-    const hash = this.simpleHash(combined);
-    return hash;
-  }
-
-  // Simple hash function
-  simpleHash(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
+  // Check if file exists
+  async fileExists(filePath) {
+    try {
+      await fs.access(filePath);
+      return true;
+    } catch {
+      return false;
     }
-    return hash;
   }
 
-  // Compare two files and return similarity analysis
-  async compareFiles(file1, file2) {
-    const similarity = {
-      file1: file1.name,
-      file2: file2.name,
-      similarityScore: 0,
-      matchedLines: 0,
-      commonBlocks: []
-    };
-
-    // 1. Fingerprint comparison (quick check)
-    const fingerprintSimilarity = this.compareFingerprintSimilarity(file1.fingerprint, file2.fingerprint);
-
-    // 2. Line-by-line comparison
-    const lineSimilarity = this.compareLines(file1.normalizedLines, file2.normalizedLines);
-    similarity.matchedLines = lineSimilarity.matchedLines;
-    similarity.commonBlocks = lineSimilarity.commonBlocks;
-
-    // 3. Token-based semantic similarity
-    const semanticSimilarity = this.compareTokens(file1.tokens, file2.tokens);
-
-    // 4. Structural similarity (for code files)
-    const structuralSimilarity = this.compareStructure(file1.content, file2.content);
-
-    // Combine all similarity measures with weights
-    similarity.similarityScore = Math.round(
-      (lineSimilarity.similarity * 0.4) +
-      (semanticSimilarity * 0.3) +
-      (structuralSimilarity * 0.2) +
-      (fingerprintSimilarity * 0.1)
-    );
-
-    return similarity;
+  // Get file extension
+  getFileExtension(filePath) {
+    return path.extname(filePath).toLowerCase().substring(1);
   }
 
-  // Compare fingerprint similarity
-  compareFingerprintSimilarity(hash1, hash2) {
-    if (hash1 === hash2) return 100;
+  // Check if two extensions belong to same language
+  isSameLanguage(ext1, ext2) {
+    const cppExtensions = ['cpp', 'c', 'cc', 'cxx'];
+    const javaExtensions = ['java'];
+    const pythonExtensions = ['py'];
     
-    // Convert hashes to binary and compare bit differences
-    const xor = hash1 ^ hash2;
-    const bits = xor.toString(2).split('1').length - 1;
-    return Math.max(0, 100 - (bits * 3)); // Rough similarity based on bit differences
-  }
-
-  // Compare normalized lines
-  compareLines(lines1, lines2) {
-    const result = {
-      similarity: 0,
-      matchedLines: 0,
-      commonBlocks: []
-    };
-
-    if (lines1.length === 0 || lines2.length === 0) {
-      return result;
-    }
-
-    // Use diff to find common subsequences
-    const patches = diff.diffArrays(lines1, lines2);
-    let matchedLines = 0;
-    let currentBlock = null;
-
-    patches.forEach((patch, index) => {
-      if (!patch.added && !patch.removed) {
-        // This is a common block
-        matchedLines += patch.value.length;
-        
-        if (patch.value.length > 2) { // Only consider blocks of 3+ lines
-          currentBlock = {
-            content: patch.value.join('\n'),
-            startLine1: this.findLineIndex(lines1, patch.value[0]),
-            endLine1: this.findLineIndex(lines1, patch.value[patch.value.length - 1]),
-            startLine2: this.findLineIndex(lines2, patch.value[0]),
-            endLine2: this.findLineIndex(lines2, patch.value[patch.value.length - 1])
-          };
-          result.commonBlocks.push(currentBlock);
-        }
-      }
-    });
-
-    result.matchedLines = matchedLines;
-    result.similarity = (matchedLines / Math.max(lines1.length, lines2.length)) * 100;
-
-    return result;
-  }
-
-  // Find line index in array
-  findLineIndex(lines, targetLine) {
-    return lines.indexOf(targetLine) + 1; // 1-based indexing
-  }
-
-  // Compare tokens using cosine similarity
-  compareTokens(tokens1, tokens2) {
-    if (tokens1.length === 0 || tokens2.length === 0) {
-      return 0;
-    }
-
-    // Create frequency vectors
-    const allTokens = [...new Set([...tokens1, ...tokens2])];
-    const vector1 = allTokens.map(token => tokens1.filter(t => t === token).length);
-    const vector2 = allTokens.map(token => tokens2.filter(t => t === token).length);
-
-    // Calculate cosine similarity
-    return this.cosineSimilarity(vector1, vector2) * 100;
-  }
-
-  // Cosine similarity calculation
-  cosineSimilarity(vec1, vec2) {
-    const dotProduct = vec1.reduce((sum, a, i) => sum + (a * vec2[i]), 0);
-    const magnitude1 = Math.sqrt(vec1.reduce((sum, a) => sum + (a * a), 0));
-    const magnitude2 = Math.sqrt(vec2.reduce((sum, a) => sum + (a * a), 0));
-
-    if (magnitude1 === 0 || magnitude2 === 0) {
-      return 0;
-    }
-
-    return dotProduct / (magnitude1 * magnitude2);
-  }
-
-  // Compare code structure (functions, classes, etc.)
-  compareStructure(content1, content2) {
-    const structure1 = this.extractStructure(content1);
-    const structure2 = this.extractStructure(content2);
-
-    // Compare function signatures
-    const functionSimilarity = this.compareArrays(structure1.functions, structure2.functions);
+    const isCpp1 = cppExtensions.includes(ext1);
+    const isCpp2 = cppExtensions.includes(ext2);
+    const isJava1 = javaExtensions.includes(ext1);
+    const isJava2 = javaExtensions.includes(ext2);
+    const isPython1 = pythonExtensions.includes(ext1);
+    const isPython2 = pythonExtensions.includes(ext2);
     
-    // Compare class names
-    const classSimilarity = this.compareArrays(structure1.classes, structure2.classes);
+    return (isCpp1 && isCpp2) || (isJava1 && isJava2) || (isPython1 && isPython2);
+  }
+
+  // Determine language from extension
+  determineLanguage(extension) {
+    const cppExtensions = ['cpp', 'c', 'cc', 'cxx'];
+    const javaExtensions = ['java'];
+    const pythonExtensions = ['py'];
     
-    // Compare variable patterns
-    const variableSimilarity = this.compareArrays(structure1.variables, structure2.variables);
-
-    return (functionSimilarity + classSimilarity + variableSimilarity) / 3;
-  }
-
-  // Extract structural elements from code
-  extractStructure(content) {
-    const structure = {
-      functions: [],
-      classes: [],
-      variables: []
-    };
-
-    // Extract function names (supports multiple languages)
-    const functionPatterns = [
-      /function\s+(\w+)/g,
-      /def\s+(\w+)/g,
-      /(\w+)\s*\(/g,
-      /const\s+(\w+)\s*=/g,
-      /let\s+(\w+)\s*=/g,
-      /var\s+(\w+)\s*=/g
-    ];
-
-    functionPatterns.forEach(pattern => {
-      let match;
-      while ((match = pattern.exec(content)) !== null) {
-        if (match[1] && match[1].length > 1) {
-          structure.functions.push(match[1].toLowerCase());
-        }
-      }
-    });
-
-    // Extract class names
-    const classPatterns = [
-      /class\s+(\w+)/g,
-      /interface\s+(\w+)/g,
-      /struct\s+(\w+)/g
-    ];
-
-    classPatterns.forEach(pattern => {
-      let match;
-      while ((match = pattern.exec(content)) !== null) {
-        if (match[1]) {
-          structure.classes.push(match[1].toLowerCase());
-        }
-      }
-    });
-
-    // Extract variable names
-    const variablePattern = /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*[=:]/g;
-    let match;
-    while ((match = variablePattern.exec(content)) !== null) {
-      if (match[1] && match[1].length > 1) {
-        structure.variables.push(match[1].toLowerCase());
-      }
-    }
-
-    return structure;
-  }
-
-  // Compare two arrays for similarity
-  compareArrays(arr1, arr2) {
-    if (arr1.length === 0 && arr2.length === 0) return 100;
-    if (arr1.length === 0 || arr2.length === 0) return 0;
-
-    const set1 = new Set(arr1);
-    const set2 = new Set(arr2);
-    const intersection = new Set([...set1].filter(x => set2.has(x)));
-    const union = new Set([...set1, ...set2]);
-
-    return (intersection.size / union.size) * 100;
-  }
-
-  // Calculate file statistics
-  calculateFileStatistics(file) {
-    const lines = file.content.split('\n').length;
-    const codeBlocks = (file.content.match(/{[\s\S]*?}/g) || []).length;
-    const functions = (file.content.match(/function|def |fn /g) || []).length;
-    const variables = (file.content.match(/let |var |const |=/g) || []).length;
-
-    return {
-      lines,
-      codeBlocks,
-      functions,
-      variables
-    };
-  }
-
-  // Detect programming language from file extension and content
-  detectLanguage(filename, content) {
-    const extension = filename.split('.').pop().toLowerCase();
+    if (cppExtensions.includes(extension)) return 'cpp';
+    if (javaExtensions.includes(extension)) return 'java';
+    if (pythonExtensions.includes(extension)) return 'python';
     
-    const languageMap = {
-      'js': 'JavaScript',
-      'jsx': 'JavaScript (JSX)',
-      'ts': 'TypeScript',
-      'tsx': 'TypeScript (TSX)',
-      'py': 'Python',
-      'java': 'Java',
-      'cpp': 'C++',
-      'c': 'C',
-      'cs': 'C#',
-      'php': 'PHP',
-      'rb': 'Ruby',
-      'go': 'Go',
-      'rs': 'Rust',
-      'swift': 'Swift',
-      'kt': 'Kotlin',
-      'scala': 'Scala',
-      'html': 'HTML',
-      'css': 'CSS',
-      'sql': 'SQL'
-    };
-
-    return languageMap[extension] || 'Unknown';
+    return 'unknown';
   }
 }
 
