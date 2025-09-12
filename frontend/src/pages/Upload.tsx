@@ -1,213 +1,400 @@
 import { useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { toast } from "@/hooks/use-toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import api from "@/lib/api";
 import {
   Upload as UploadIcon,
   FileText,
   X,
+  Play,
   CheckCircle,
-  AlertCircle,
-  Loader2,
+  AlertTriangle,
+  Eye,
 } from "lucide-react";
-import { analysisAPI, reportsAPI } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
-interface UploadedFile extends File {
+interface AnalysisResult {
   id: string;
-  preview?: string;
+  file1: string;
+  file2: string;
+  language: string;
+  similarity: number;
+  method: string;
+  status: string;
 }
 
-const Upload = () => {
-  const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [tags, setTags] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [progress, setProgress] = useState(0);
+export default function Upload() {
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newFiles = acceptedFiles.map(file => ({
-      ...file,
-      id: Math.random().toString(36).substr(2, 9)
-    }));
-    
-    setFiles(prev => [...prev, ...newFiles]);
-    toast({
-      title: "Files added",
-      description: `${acceptedFiles.length} file(s) added for analysis.`,
-    });
-  }, []);
-
-  const removeFile = (fileId: string) => {
-    setFiles(prev => prev.filter(file => file.id !== fileId));
+  const getFileLanguage = (filename: string): string => {
+    const extension = filename.split(".").pop()?.toLowerCase() || "";
+    const langMap: { [key: string]: string } = {
+      cpp: "C++",
+      c: "C++",
+      cc: "C++",
+      cxx: "C++",
+      java: "Java",
+      py: "Python",
+    };
+    return langMap[extension] || "Unknown";
   };
 
-  const handleAnalyze = async () => {
-    if (files.length < 2) {
-      toast({
-        title: "Insufficient files",
-        description: "Please upload at least 2 files for comparison.",
-        variant: "destructive",
+  const getSupportedExtensions = (): string[] => {
+    return ["cpp", "c", "cc", "cxx", "java", "py"];
+  };
+
+  const groupFilesByExtension = (files: File[]) => {
+    const groups: { [key: string]: File[] } = {};
+
+    files.forEach((file) => {
+      const extension = file.name.split(".").pop()?.toLowerCase() || "";
+      const supportedExtensions = getSupportedExtensions();
+
+      if (supportedExtensions.includes(extension)) {
+        // Normalize C++ extensions
+        const normalizedExt = ["cpp", "c", "cc", "cxx"].includes(extension)
+          ? "cpp"
+          : extension;
+
+        if (!groups[normalizedExt]) {
+          groups[normalizedExt] = [];
+        }
+        groups[normalizedExt].push(file);
+      }
+    });
+
+    return groups;
+  };
+
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      const supportedExtensions = getSupportedExtensions();
+      const validFiles = acceptedFiles.filter((file) => {
+        const extension = file.name.split(".").pop()?.toLowerCase() || "";
+        return supportedExtensions.includes(extension);
       });
+
+      if (validFiles.length !== acceptedFiles.length) {
+        alert(
+          "Some files were not uploaded. Only C++, Java, and Python files are supported."
+        );
+      }
+
+      setUploadedFiles((prev) => [...prev, ...validFiles]);
+    },
+    [setUploadedFiles]
+  );
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    multiple: true,
+    maxSize: 10 * 1024 * 1024, // 10MB
+  });
+
+  const removeFile = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAnalysis = async () => {
+    if (uploadedFiles.length < 2) {
+      alert("Please upload at least 2 files for comparison");
+      return;
+    }
+
+    // Group files by extension
+    const fileGroups = groupFilesByExtension(uploadedFiles);
+
+    // Check if we have files to compare
+    const groupsWithMultipleFiles = Object.entries(fileGroups).filter(
+      ([, files]) => files.length >= 2
+    );
+
+    if (groupsWithMultipleFiles.length === 0) {
+      alert(
+        "Please upload at least 2 files of the same type (same extension) for comparison"
+      );
       return;
     }
 
     setIsAnalyzing(true);
-    setProgress(0);
+    setAnalysisProgress(0);
+    setAnalysisResults([]);
 
     try {
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setProgress(prev => {
-          if (prev < 90) return prev + 10;
-          return prev;
-        });
-      }, 200);
+      const allResults: AnalysisResult[] = [];
+      let completedComparisons = 0;
+      let totalComparisons = 0;
 
-      // Prepare form data
-      const formData = new FormData();
-      files.forEach(file => {
-        formData.append('files', file);
-      });
-      
-      if (title) formData.append('title', title);
-      if (description) formData.append('description', description);
-      if (tags) formData.append('tags', tags);
-
-      // Analyze files
-      const analysisResponse = await analysisAPI.analyzeFiles(formData);
-      
-      clearInterval(progressInterval);
-      setProgress(100);
-
-      // Create report from analysis
-      const reportData = {
-        title: analysisResponse.data.title,
-        description: analysisResponse.data.description,
-        files: analysisResponse.data.files.map((file: any) => ({
-          name: file.name,
-          originalName: file.originalName,
-          content: '', // Content is processed on backend
-          size: file.size,
-          language: file.language,
-          extension: file.extension
-        })),
-        analysis: analysisResponse.data.analysis,
-        processingTime: analysisResponse.data.processingTime,
-        tags: analysisResponse.data.tags,
-        status: 'completed'
-      };
-
-      const reportResponse = await reportsAPI.createReport(reportData);
-
-      toast({
-        title: "Analysis completed!",
-        description: "Your files have been analyzed successfully.",
+      // Calculate total comparisons
+      groupsWithMultipleFiles.forEach(([, files]) => {
+        for (let i = 0; i < files.length - 1; i++) {
+          for (let j = i + 1; j < files.length; j++) {
+            totalComparisons++;
+          }
+        }
       });
 
-      // Navigate to report details
-      navigate(`/reports/${reportResponse.data.report._id}`);
+      // Analyze each group separately
+      for (const [extension, files] of groupsWithMultipleFiles) {
+        if (files.length >= 2) {
+          // Compare each pair of files in the group
+          for (let i = 0; i < files.length - 1; i++) {
+            for (let j = i + 1; j < files.length; j++) {
+              try {
+                const formData = new FormData();
+                formData.append("files", files[i]);
+                formData.append("files", files[j]);
+                formData.append(
+                  "title",
+                  `Analysis of ${files[i].name} vs ${files[j].name}`
+                );
+                formData.append("description", "Automated plagiarism analysis");
 
-    } catch (error: any) {
-      console.error('Analysis error:', error);
-      toast({
-        title: "Analysis failed",
-        description: error.response?.data?.message || "An error occurred during analysis.",
-        variant: "destructive",
-      });
-      setProgress(0);
+                const response = await api.post("/analysis/analyze", formData, {
+                  headers: {
+                    "Content-Type": "multipart/form-data",
+                  },
+                });
+
+                if (response.data.success) {
+                  const similarity = response.data.data.similarity || 0;
+                  allResults.push({
+                    id: response.data.data.reportId || `${Date.now()}-${i}-${j}`,
+                    file1: files[i].name,
+                    file2: files[j].name,
+                    language: getFileLanguage(files[i].name),
+                    similarity: similarity,
+                    method: "Combined",
+                    status:
+                      similarity >= 0.8
+                        ? "High Risk"
+                        : similarity >= 0.5
+                        ? "Medium Risk"
+                        : "Low Risk",
+                  });
+                }
+              } catch (error) {
+                console.error(
+                  `Error analyzing ${files[i].name} vs ${files[j].name}:`,
+                  error
+                );
+                // Continue with other comparisons even if one fails
+              }
+
+              completedComparisons++;
+              setAnalysisProgress((completedComparisons / totalComparisons) * 100);
+            }
+          }
+        }
+      }
+
+      setAnalysisResults(allResults);
+
+      if (allResults.length > 0) {
+        alert(
+          `Analysis completed! Found ${allResults.length} comparisons. Check the results below.`
+        );
+      } else {
+        alert(
+          "Analysis completed but no results were generated. Please try again."
+        );
+      }
+    } catch (error) {
+      console.error("Analysis failed:", error);
+      alert(
+        "Analysis failed. Please try again or check your internet connection."
+      );
     } finally {
       setIsAnalyzing(false);
+      setAnalysisProgress(0);
     }
   };
 
-  const getFileLanguage = (filename: string) => {
-    const ext = filename.split('.').pop()?.toLowerCase();
-    const languageMap: { [key: string]: string } = {
-      js: 'JavaScript',
-      jsx: 'JavaScript',
-      ts: 'TypeScript',
-      tsx: 'TypeScript',
-      py: 'Python',
-      java: 'Java',
-      c: 'C',
-      cpp: 'C++',
-      cc: 'C++',
-      cxx: 'C++',
-      cs: 'C#',
-      php: 'PHP',
-      rb: 'Ruby',
-      go: 'Go',
-      rs: 'Rust'
-    };
-    return languageMap[ext || ''] || 'Unknown';
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "High Risk":
+        return "bg-red-500";
+      case "Medium Risk":
+        return "bg-yellow-500";
+      case "Low Risk":
+        return "bg-green-500";
+      default:
+        return "bg-gray-500";
+    }
   };
 
+  const viewReport = (resultId: string) => {
+    navigate(`/reports/${resultId}`);
+  };
+
+  // Group uploaded files by extension for display
+  const fileGroups = groupFilesByExtension(uploadedFiles);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">Upload & Analyze</h1>
-        <p className="text-muted-foreground">
+        <p className="text-muted-foreground mt-2">
           Upload your code files to detect plagiarism and analyze similarities.
         </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
+        {/* Main Upload Area */}
         <div className="lg:col-span-2 space-y-6">
-          {/* File Upload Area */}
-          <Card>
+          {/* File Upload */}
+          <Card className="bg-gradient-card shadow-card">
             <CardHeader>
-              <CardTitle>File Upload</CardTitle>
-              <CardDescription>
-                Drag and drop files or click to select. Upload at least 2 files for comparison.
-              </CardDescription>
+              <CardTitle className="text-foreground">File Upload</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Drag and drop files or click to select. Upload at least 2 files for
+                comparison.
+              </p>
             </CardHeader>
             <CardContent>
-              <div className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors border-muted-foreground/25 hover:border-primary/50">
+              <div
+                {...getRootProps()}
+                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                  isDragActive
+                    ? "border-primary bg-primary/5"
+                    : "border-muted-foreground/25 hover:border-primary/50"
+                }`}
+              >
+                <input {...getInputProps()} />
                 <UploadIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-lg font-medium mb-2">Drag & drop files here</p>
-                <p className="text-sm text-muted-foreground">or click to select files</p>
+                <h3 className="text-lg font-medium text-foreground mb-2">
+                  {isDragActive ? "Drop files here" : "Drag & drop files here"}
+                </h3>
+                <p className="text-muted-foreground">or click to select files</p>
               </div>
+
+              {/* Uploaded Files */}
+              {uploadedFiles.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="font-medium text-foreground mb-3">
+                    Uploaded Files ({uploadedFiles.length})
+                  </h4>
+
+                  {/* Group files by extension */}
+                  {Object.entries(fileGroups).map(([extension, files]) => (
+                    <div key={extension} className="mb-4">
+                      <h5 className="text-sm font-medium text-muted-foreground mb-2">
+                        {getFileLanguage(files[0].name)} Files ({files.length})
+                      </h5>
+                      <div className="space-y-2">
+                        {files.map((file, index) => {
+                          const originalIndex = uploadedFiles.indexOf(file);
+                          return (
+                            <div
+                              key={originalIndex}
+                              className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm font-medium">{file.name}</span>
+                                <Badge variant="secondary">
+                                  {getFileLanguage(file.name)}
+                                </Badge>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeFile(originalIndex)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Analysis Button */}
+              <div className="mt-6 flex justify-center">
+                <Button
+                  onClick={handleAnalysis}
+                  disabled={uploadedFiles.length < 2 || isAnalyzing}
+                  className="bg-gradient-primary hover:shadow-glow transition-all"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-4 w-4" />
+                      Start Analysis
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Analysis Progress */}
+              {isAnalyzing && (
+                <div className="mt-4">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span>Analysis Progress</span>
+                    <span>{Math.round(analysisProgress)}%</span>
+                  </div>
+                  <Progress value={analysisProgress} className="h-2" />
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Uploaded Files */}
-          {files.length > 0 && (
-            <Card>
+          {/* Analysis Results */}
+          {analysisResults.length > 0 && (
+            <Card className="bg-gradient-card shadow-card">
               <CardHeader>
-                <CardTitle>Uploaded Files ({files.length})</CardTitle>
+                <CardTitle className="text-foreground">Analysis Results</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Comparison results for uploaded files
+                </p>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {files.map((file) => (
-                    <div key={file.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">{file.name}</p>
-                          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                            <span>{(file.size / 1024).toFixed(1)} KB</span>
-                            <Badge variant="secondary" className="text-xs">
-                              {getFileLanguage(file.name)}
-                            </Badge>
-                          </div>
+                <div className="space-y-4">
+                  {analysisResults.map((result, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Badge variant="outline">{result.language}</Badge>
+                          <Badge className={getStatusColor(result.status)}>
+                            {result.status}
+                          </Badge>
                         </div>
+                        <p className="text-sm font-medium">
+                          {result.file1} vs {result.file2}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Similarity: {Math.round(result.similarity * 100)}% • Method:{" "}
+                          {result.method}
+                        </p>
                       </div>
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        onClick={() => removeFile(file.id)}
-                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => viewReport(result.id)}
                       >
-                        <X className="h-4 w-4" />
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Report
                       </Button>
                     </div>
                   ))}
@@ -215,149 +402,68 @@ const Upload = () => {
               </CardContent>
             </Card>
           )}
-
-          {/* Analysis Configuration */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Analysis Configuration</CardTitle>
-              <CardDescription>
-                Configure your analysis settings and metadata.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  placeholder="Enter a title for this analysis..."
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Description (Optional)</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Describe the purpose of this analysis..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="tags">Tags (Optional)</Label>
-                <Input
-                  id="tags"
-                  placeholder="Enter tags separated by commas..."
-                  value={tags}
-                  onChange={(e) => setTags(e.target.value)}
-                />
-              </div>
-
-              {isAnalyzing && (
-                <div className="space-y-2">
-                  <Label>Analysis Progress</Label>
-                  <Progress value={progress} className="w-full" />
-                  <p className="text-sm text-muted-foreground">
-                    {progress < 30 ? 'Uploading files...' :
-                     progress < 60 ? 'Processing files...' :
-                     progress < 90 ? 'Running analysis...' : 'Generating report...'}
-                  </p>
-                </div>
-              )}
-
-              <Button 
-                onClick={handleAnalyze} 
-                disabled={files.length < 2 || isAnalyzing}
-                className="w-full"
-                size="lg"
-              >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Analyzing Files...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    Start Analysis
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-6">
-          <Card>
+          {/* Supported Languages */}
+          <Card className="bg-gradient-card shadow-card">
             <CardHeader>
-              <CardTitle>Supported Languages</CardTitle>
+              <CardTitle className="text-foreground">Supported Languages</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 gap-2 text-sm">
-                {[
-                  'JavaScript', 'TypeScript', 'Python', 'Java',
-                  'C/C++', 'C#', 'PHP', 'Ruby', 'Go', 'Rust'
-                ].map((lang) => (
-                  <Badge key={lang} variant="outline" className="justify-center">
-                    {lang}
-                  </Badge>
-                ))}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">C++</span>
+                  <Badge variant="secondary">.cpp, .c, .cc, .cxx</Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Java</span>
+                  <Badge variant="secondary">.java</Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Python</span>
+                  <Badge variant="secondary">.py</Badge>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          {/* Upload Guidelines */}
+          <Card className="bg-gradient-card shadow-card">
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <AlertCircle className="mr-2 h-5 w-5" />
+              <CardTitle className="text-foreground flex items-center">
+                <AlertTriangle className="mr-2 h-4 w-4" />
                 Upload Guidelines
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex items-start space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                <span>Upload at least 2 files for comparison</span>
+            <CardContent>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-start space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                  <span>Upload at least 2 files for comparison</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                  <span>Maximum file size: 10MB each</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                  <span>Maximum 20 files per analysis</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                  <span>Remove sensitive information</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <AlertTriangle className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                  <span>Files are processed securely and not stored permanently</span>
+                </div>
               </div>
-              <div className="flex items-start space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                <span>Maximum file size: 10MB each</span>
-              </div>
-              <div className="flex items-start space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                <span>Maximum 20 files per analysis</span>
-              </div>
-              <div className="flex items-start space-x-2">
-                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                <span>Remove sensitive information</span>
-              </div>
-              <div className="flex items-start space-x-2">
-                <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5" />
-                <span>Files are processed securely and not stored permanently</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Analysis Features</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <p>• Semantic similarity detection</p>
-              <p>• Code structure analysis</p>
-              <p>• Line-by-line comparison</p>
-              <p>• Function signature matching</p>
-              <p>• Variable name patterns</p>
-              <p>• Comprehensive similarity scoring</p>
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
   );
-};
-
-export default Upload;
+}
