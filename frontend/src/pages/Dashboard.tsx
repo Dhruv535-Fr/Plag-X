@@ -65,6 +65,14 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
+      // Set default empty state on error
+      setStats({
+        totalFilesChecked: 0,
+        averageSimilarity: 0,
+        casesFlagged: 0,
+        languagesSupported: 3
+      });
+      setRecentReports([]);
     } finally {
       setLoading(false);
     }
@@ -94,11 +102,11 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Updated with dynamic data */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Total Files Checked"
-          value={loading ? "..." : stats.totalFilesChecked.toLocaleString()}
+          value={loading ? "..." : stats.totalFilesChecked.toString()}
           description="Code files analyzed"
           icon={<FileCheck className="h-4 w-4" />}
           trend={stats.totalFilesChecked > 0 ? {
@@ -136,14 +144,14 @@ export default function Dashboard() {
 
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Recent Reports - Takes 2 columns */}
+        {/* Recent Reports - Takes 2 columns - Shows actual comparison results */}
         <div className="lg:col-span-2">
           <RecentReports reports={recentReports} loading={loading} />
         </div>
 
         {/* Quick Actions Sidebar */}
         <div className="space-y-6">
-          {/* Upload CTA Card */}
+          {/* Start New Analysis Card */}
           <Card className="bg-gradient-primary shadow-glow border-0">
             <CardHeader>
               <CardTitle className="text-primary-foreground">
@@ -165,7 +173,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Detection Methods Card */}
+          {/* Detection Methods Card - Unchanged as requested */}
           <Card className="bg-gradient-card shadow-card">
             <CardHeader>
               <CardTitle className="text-foreground">Detection Methods</CardTitle>
