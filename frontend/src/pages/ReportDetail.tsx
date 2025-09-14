@@ -15,6 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import api from "@/lib/api";
 
 interface ReportData {
   _id: string;
@@ -57,22 +58,17 @@ export default function ReportDetail() {
 
   const fetchReport = async (reportId: string) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/reports/${reportId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setReport(data.report);
-      } else {
-        setError('Report not found');
-      }
-    } catch (error) {
+      const response = await api.get(`/reports/${reportId}`);
+      setReport(response.data.data.report);
+    } catch (error: any) {
       console.error('Error fetching report:', error);
-      setError('Failed to load report');
+      if (error.response?.status === 404) {
+        setError('Report not found');
+      } else if (error.response?.status === 403) {
+        setError('You do not have access to this report');
+      } else {
+        setError('Failed to load report');
+      }
     } finally {
       setLoading(false);
     }
@@ -108,9 +104,9 @@ export default function ReportDetail() {
         <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
         <h1 className="text-2xl font-bold mb-2">Report Not Found</h1>
         <p className="text-muted-foreground mb-4">{error || 'The requested report could not be found.'}</p>
-        <Button onClick={() => navigate('/reports')}>
+        <Button onClick={() => navigate('/upload')}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Reports
+          Back to Upload
         </Button>
       </div>
     );
@@ -130,11 +126,11 @@ export default function ReportDetail() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/reports')}
+            onClick={() => navigate('/upload')}
             className="flex items-center"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Reports
+            Back to Upload
           </Button>
           <div>
             <h1 className="text-3xl font-bold text-foreground">Report Analysis</h1>

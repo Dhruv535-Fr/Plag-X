@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Upload,
   FileText,
-  BarChart3,
   Menu,
   Settings,
   LogOut,
@@ -28,7 +27,6 @@ const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Upload", href: "/upload", icon: Upload },
   { name: "Reports", href: "/reports", icon: FileText },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 

@@ -3,13 +3,19 @@ const User = require('../models/User');
 
 const protect = async (req, res, next) => {
   try {
+    console.log('=== AUTH MIDDLEWARE DEBUG ===');
+    console.log('Request path:', req.path);
+    console.log('Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
+    
     // 1) Getting token and check if it's there
     let token;
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
+      console.log('Token extracted:', token.substring(0, 20) + '...');
     }
 
     if (!token) {
+      console.log('No token provided');
       return res.status(401).json({
         success: false,
         message: 'You are not logged in! Please log in to get access.'
@@ -18,15 +24,20 @@ const protect = async (req, res, next) => {
 
     // 2) Verification token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decoded, user ID:', decoded.id);
 
     // 3) Check if user still exists
     const currentUser = await User.findById(decoded.id);
     if (!currentUser) {
+      console.log('User not found in database');
       return res.status(401).json({
         success: false,
         message: 'The user belonging to this token does no longer exist.'
       });
     }
+
+    console.log('User found:', currentUser.email);
+    console.log('Auth middleware passed successfully');
 
     // 4) Check if user is active
     if (!currentUser.isActive) {

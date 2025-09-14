@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +50,51 @@ export default function Upload() {
   const [currentAnalysis, setCurrentAnalysis] = useState<string>("");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Load analysis results from localStorage on component mount
+  useEffect(() => {
+    if (user?.email) {
+      const userKey = `analysisResults_${user.email}`;
+      const userErrorKey = `analysisErrors_${user.email}`;
+      
+      const savedResults = localStorage.getItem(userKey);
+      const savedErrors = localStorage.getItem(userErrorKey);
+      
+      if (savedResults) {
+        try {
+          const parsedResults = JSON.parse(savedResults);
+          setAnalysisResults(parsedResults);
+        } catch (error) {
+          console.error('Error loading saved analysis results:', error);
+        }
+      }
+      
+      if (savedErrors) {
+        try {
+          const parsedErrors = JSON.parse(savedErrors);
+          setAnalysisErrors(parsedErrors);
+        } catch (error) {
+          console.error('Error loading saved analysis errors:', error);
+        }
+      }
+    }
+  }, [user?.email]);
+
+  // Save analysis results to localStorage whenever they change
+  useEffect(() => {
+    if (analysisResults.length > 0 && user?.email) {
+      const userKey = `analysisResults_${user.email}`;
+      localStorage.setItem(userKey, JSON.stringify(analysisResults));
+    }
+  }, [analysisResults, user?.email]);
+
+  // Save analysis errors to localStorage whenever they change
+  useEffect(() => {
+    if (analysisErrors.length > 0 && user?.email) {
+      const userErrorKey = `analysisErrors_${user.email}`;
+      localStorage.setItem(userErrorKey, JSON.stringify(analysisErrors));
+    }
+  }, [analysisErrors, user?.email]);
 
   const getFileLanguage = (filename: string): string => {
     const extension = filename.split(".").pop()?.toLowerCase() || "";
@@ -150,6 +195,11 @@ export default function Upload() {
     setAnalysisErrors([]);
     setUploadError(null);
     setSuccessMessage(null);
+    // Clear localStorage with user-specific keys
+    if (user?.email) {
+      localStorage.removeItem(`analysisResults_${user.email}`);
+      localStorage.removeItem(`analysisErrors_${user.email}`);
+    }
   };
 
   const handleAnalysis = async () => {
@@ -182,6 +232,11 @@ export default function Upload() {
     setAnalysisProgress(0);
     setAnalysisResults([]);
     setCurrentAnalysis("");
+    // Clear localStorage when starting new analysis with user-specific keys
+    if (user?.email) {
+      localStorage.removeItem(`analysisResults_${user.email}`);
+      localStorage.removeItem(`analysisErrors_${user.email}`);
+    }
 
     try {
       const allResults: AnalysisResult[] = [];
@@ -542,10 +597,28 @@ export default function Upload() {
           {analysisResults.length > 0 && (
             <Card className="bg-gradient-card shadow-card">
               <CardHeader>
-                <CardTitle className="text-foreground">Analysis Results</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Comparison results for uploaded files
-                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-foreground">Analysis Results</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Comparison results for uploaded files
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setAnalysisResults([]);
+                      setAnalysisErrors([]);
+                      if (user?.email) {
+                        localStorage.removeItem(`analysisResults_${user.email}`);
+                        localStorage.removeItem(`analysisErrors_${user.email}`);
+                      }
+                    }}
+                  >
+                    Clear Results
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">

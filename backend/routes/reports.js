@@ -65,6 +65,10 @@ router.post('/', protect, async (req, res) => {
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
+    console.log('=== REPORTS FETCH DEBUG ===');
+    console.log('User ID:', req.user.id);
+    console.log('Query params:', req.query);
+    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const sortBy = req.query.sortBy || 'createdAt';
@@ -77,6 +81,7 @@ router.get('/', protect, async (req, res) => {
 
     // Build query
     let query = { user: req.user.id };
+    console.log('Base query:', query);
 
     if (status) {
       query.status = status;
@@ -84,12 +89,16 @@ router.get('/', protect, async (req, res) => {
 
     if (minSimilarity !== undefined || maxSimilarity !== undefined) {
       query['analysis.overallSimilarityScore'] = {};
-      if (minSimilarity !== undefined) {
+      // Only apply filters if the values are valid numbers
+      if (!isNaN(minSimilarity) && isFinite(minSimilarity)) {
         query['analysis.overallSimilarityScore'].$gte = minSimilarity;
       }
-      if (maxSimilarity !== undefined) {
+      if (!isNaN(maxSimilarity) && isFinite(maxSimilarity)) {
         query['analysis.overallSimilarityScore'].$lte = maxSimilarity;
       }
+      // Also filter out NaN values
+      query['analysis.overallSimilarityScore'].$exists = true;
+      query['analysis.overallSimilarityScore'].$ne = null;
     }
 
     if (language) {
@@ -106,6 +115,30 @@ router.get('/', protect, async (req, res) => {
 
     const skip = (page - 1) * limit;
 
+    console.log('Final query:', query);
+    console.log('Sort:', { [sortBy]: sortOrder });
+    console.log('Pagination:', { skip, limit });
+
+    // Clean up any reports with NaN similarity scores before querying
+    try {
+      const cleanupResult = await Report.updateMany(
+        { 
+          user: req.user.id,
+          $or: [
+            { 'analysis.overallSimilarityScore': NaN },
+            { 'analysis.overallSimilarityScore': { $type: 'string' } },
+            { 'analysis.overallSimilarityScore': null }
+          ]
+        },
+        { 'analysis.overallSimilarityScore': 0 }
+      );
+      if (cleanupResult.modifiedCount > 0) {
+        console.log('Cleaned up', cleanupResult.modifiedCount, 'reports with invalid similarity scores');
+      }
+    } catch (cleanupError) {
+      console.log('Cleanup attempt failed (non-critical):', cleanupError.message);
+    }
+
     // Get reports with pagination
     const reports = await Report.find(query)
       .populate('user', 'username firstName lastName')
@@ -113,9 +146,13 @@ router.get('/', protect, async (req, res) => {
       .skip(skip)
       .limit(limit);
 
+    console.log('Found reports count:', reports.length);
+
     // Get total count for pagination
     const total = await Report.countDocuments(query);
     const totalPages = Math.ceil(total / limit);
+
+    console.log('Total reports in DB for user:', total);
 
     res.status(200).json({
       success: true,
@@ -191,25 +228,39 @@ router.get('/public', optionalAuth, async (req, res) => {
 // @access  Private
 router.get('/:id', protect, async (req, res) => {
   try {
+    console.log('=== REPORT ACCESS DEBUG ===');
+    console.log('Request user ID:', req.user.id);
+    console.log('Request user email:', req.user.email);
+    console.log('Report ID:', req.params.id);
+    
     const report = await Report.findById(req.params.id)
       .populate('user', 'username email firstName lastName')
       .populate('sharedWith.user', 'username firstName lastName');
 
     if (!report) {
+      console.log('Report not found in database');
       return res.status(404).json({
         success: false,
         message: 'Report not found'
       });
     }
 
+    console.log('Report found - owner ID:', report.user._id.toString());
+    console.log('Report owner email:', report.user.email);
+    
     // Check if user can access this report
-    if (!report.canUserAccess(req.user.id)) {
+    const canAccess = report.canUserAccess(req.user.id);
+    console.log('Can user access report:', canAccess);
+    
+    if (!canAccess) {
+      console.log('Access denied - user IDs do not match');
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this report'
       });
     }
 
+    console.log('Access granted - returning report data');
     res.status(200).json({
       success: true,
       data: {
