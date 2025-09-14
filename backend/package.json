@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Code Duo Detect Backend - Plagiarism Detection System",
+  "description": "PlagX Backend - Plagiarism Detection System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

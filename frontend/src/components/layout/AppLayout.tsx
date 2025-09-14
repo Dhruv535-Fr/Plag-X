@@ -71,7 +71,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           {!sidebarCollapsed && (
             <div className="flex items-center select-none">
               <span className="text-xl font-bold tracking-tight text-sidebar-foreground">
-                Code<span className="text-primary">Duo</span>
+                Plag<span className="text-primary">X</span>
               </span>
             </div>
           )}

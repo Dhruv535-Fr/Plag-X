@@ -82,9 +82,6 @@ export const reportsAPI = {
   
   shareReport: (id: string, userEmail: string, permission: string = 'read') =>
     api.post(`/reports/${id}/share`, { userEmail, permission }),
-  
-  getAnalytics: () =>
-    api.get('/reports/analytics/summary'),
 };
 
 // Analysis API

@@ -65,10 +65,6 @@ router.post('/', protect, async (req, res) => {
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    console.log('=== REPORTS FETCH DEBUG ===');
-    console.log('User ID:', req.user.id);
-    console.log('Query params:', req.query);
-    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const sortBy = req.query.sortBy || 'createdAt';
@@ -81,7 +77,6 @@ router.get('/', protect, async (req, res) => {
 
     // Build query
     let query = { user: req.user.id };
-    console.log('Base query:', query);
 
     if (status) {
       query.status = status;
@@ -115,13 +110,9 @@ router.get('/', protect, async (req, res) => {
 
     const skip = (page - 1) * limit;
 
-    console.log('Final query:', query);
-    console.log('Sort:', { [sortBy]: sortOrder });
-    console.log('Pagination:', { skip, limit });
-
     // Clean up any reports with NaN similarity scores before querying
     try {
-      const cleanupResult = await Report.updateMany(
+      await Report.updateMany(
         { 
           user: req.user.id,
           $or: [
@@ -132,11 +123,8 @@ router.get('/', protect, async (req, res) => {
         },
         { 'analysis.overallSimilarityScore': 0 }
       );
-      if (cleanupResult.modifiedCount > 0) {
-        console.log('Cleaned up', cleanupResult.modifiedCount, 'reports with invalid similarity scores');
-      }
     } catch (cleanupError) {
-      console.log('Cleanup attempt failed (non-critical):', cleanupError.message);
+      // Cleanup attempt failed (non-critical)
     }
 
     // Get reports with pagination
@@ -146,13 +134,9 @@ router.get('/', protect, async (req, res) => {
       .skip(skip)
       .limit(limit);
 
-    console.log('Found reports count:', reports.length);
-
     // Get total count for pagination
     const total = await Report.countDocuments(query);
     const totalPages = Math.ceil(total / limit);
-
-    console.log('Total reports in DB for user:', total);
 
     res.status(200).json({
       success: true,
@@ -228,39 +212,27 @@ router.get('/public', optionalAuth, async (req, res) => {
 // @access  Private
 router.get('/:id', protect, async (req, res) => {
   try {
-    console.log('=== REPORT ACCESS DEBUG ===');
-    console.log('Request user ID:', req.user.id);
-    console.log('Request user email:', req.user.email);
-    console.log('Report ID:', req.params.id);
-    
     const report = await Report.findById(req.params.id)
       .populate('user', 'username email firstName lastName')
       .populate('sharedWith.user', 'username firstName lastName');
 
     if (!report) {
-      console.log('Report not found in database');
       return res.status(404).json({
         success: false,
         message: 'Report not found'
       });
     }
 
-    console.log('Report found - owner ID:', report.user._id.toString());
-    console.log('Report owner email:', report.user.email);
-    
     // Check if user can access this report
     const canAccess = report.canUserAccess(req.user.id);
-    console.log('Can user access report:', canAccess);
     
     if (!canAccess) {
-      console.log('Access denied - user IDs do not match');
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this report'
       });
     }
 
-    console.log('Access granted - returning report data');
     res.status(200).json({
       success: true,
       data: {
@@ -443,97 +415,6 @@ router.post('/:id/share', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error sharing report',
-      error: error.message
-    });
-  }
-});
-
-// @desc    Get report analytics
-// @route   GET /api/reports/analytics/summary
-// @access  Private
-router.get('/analytics/summary', protect, async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    // Aggregate user's report statistics
-    const stats = await Report.aggregate([
-      { $match: { user: userId } },
-      {
-        $group: {
-          _id: null,
-          totalReports: { $sum: 1 },
-          avgSimilarity: { $avg: '$analysis.overallSimilarityScore' },
-          highSimilarityReports: {
-            $sum: {
-              $cond: [{ $gt: ['$analysis.overallSimilarityScore', 70] }, 1, 0]
-            }
-          },
-          mediumSimilarityReports: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $gt: ['$analysis.overallSimilarityScore', 40] },
-                    { $lte: ['$analysis.overallSimilarityScore', 70] }
-                  ]
-                },
-                1,
-                0
-              ]
-            }
-          },
-          lowSimilarityReports: {
-            $sum: {
-              $cond: [{ $lte: ['$analysis.overallSimilarityScore', 40] }, 1, 0]
-            }
-          }
-        }
-      }
-    ]);
-
-    // Get language distribution
-    const languageStats = await Report.aggregate([
-      { $match: { user: userId } },
-      { $unwind: '$analysis.detectedLanguages' },
-      {
-        $group: {
-          _id: '$analysis.detectedLanguages',
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { count: -1 } }
-    ]);
-
-    // Get recent activity (last 7 days)
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-
-    const recentActivity = await Report.find({
-      user: userId,
-      createdAt: { $gte: weekAgo }
-    }).sort({ createdAt: -1 }).limit(10);
-
-    const summary = stats[0] || {
-      totalReports: 0,
-      avgSimilarity: 0,
-      highSimilarityReports: 0,
-      mediumSimilarityReports: 0,
-      lowSimilarityReports: 0
-    };
-
-    res.status(200).json({
-      success: true,
-      data: {
-        summary,
-        languageDistribution: languageStats,
-        recentActivity: recentActivity.length,
-        weeklyReports: recentActivity.length
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching analytics',
       error: error.message
     });
   }
