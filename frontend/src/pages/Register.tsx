@@ -60,7 +60,7 @@ const Register = () => {
       await registerUser(registerData);
       toast({
         title: 'Registration successful!',
-        description: 'Welcome to Code Duo Detect.',
+        description: 'Welcome to PlagX.',
       });
       navigate('/');
     } catch (error: any) {
@@ -75,24 +75,24 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-2xl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+      <Card className="w-full max-w-2xl backdrop-blur-lg bg-white/10 shadow-2xl border border-white/20 relative z-10">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
-            <div className="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center">
+            <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg">
               <UserPlus className="w-6 h-6 text-white" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-center">Create account</CardTitle>
-          <CardDescription className="text-center">
-            Join Code Duo Detect to start analyzing code similarity
+          <CardTitle className="text-2xl font-bold text-center text-white">Create account</CardTitle>
+          <CardDescription className="text-center text-gray-200">
+            Join PlagX to start analyzing code similarity
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="firstName">First Name</Label>
+                <Label htmlFor="firstName" className="text-white">First Name</Label>
                 <Input
                   id="firstName"
                   placeholder="Enter your first name"
@@ -100,10 +100,11 @@ const Register = () => {
                   onChange={(e) => handleChange('firstName', e.target.value)}
                   required
                   disabled={isLoading}
+                  className="bg-white/20 border-white/30 text-white placeholder:text-gray-300"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Last Name</Label>
+                <Label htmlFor="lastName" className="text-white">Last Name</Label>
                 <Input
                   id="lastName"
                   placeholder="Enter your last name"
@@ -111,12 +112,13 @@ const Register = () => {
                   onChange={(e) => handleChange('lastName', e.target.value)}
                   required
                   disabled={isLoading}
+                  className="bg-white/20 border-white/30 text-white placeholder:text-gray-300"
                 />
               </div>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username" className="text-white">Username</Label>
               <Input
                 id="username"
                 placeholder="Choose a username"
@@ -124,11 +126,12 @@ const Register = () => {
                 onChange={(e) => handleChange('username', e.target.value)}
                 required
                 disabled={isLoading}
+                className="bg-white/20 border-white/30 text-white placeholder:text-gray-300"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-white">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -137,12 +140,13 @@ const Register = () => {
                 onChange={(e) => handleChange('email', e.target.value)}
                 required
                 disabled={isLoading}
+                className="bg-white/20 border-white/30 text-white placeholder:text-gray-300"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-white">Password</Label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -152,12 +156,13 @@ const Register = () => {
                     onChange={(e) => handleChange('password', e.target.value)}
                     required
                     disabled={isLoading}
+                    className="bg-white/20 border-white/30 text-white placeholder:text-gray-300"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-white/10 text-white"
                     onClick={() => setShowPassword(!showPassword)}
                     disabled={isLoading}
                   >
@@ -170,7 +175,7 @@ const Register = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Label htmlFor="confirmPassword" className="text-white">Confirm Password</Label>
                 <div className="relative">
                   <Input
                     id="confirmPassword"
@@ -180,12 +185,13 @@ const Register = () => {
                     onChange={(e) => handleChange('confirmPassword', e.target.value)}
                     required
                     disabled={isLoading}
+                    className="bg-white/20 border-white/30 text-white placeholder:text-gray-300"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-white/10 text-white"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     disabled={isLoading}
                   >
@@ -211,8 +217,8 @@ const Register = () => {
           </form>
 
           <div className="mt-6 text-center text-sm">
-            <span className="text-muted-foreground">Already have an account? </span>
-            <Link to="/login" className="text-indigo-600 hover:text-indigo-500 font-medium">
+            <span className="text-gray-300">Already have an account? </span>
+            <Link to="/login" className="text-purple-300 hover:text-purple-200 font-medium">
               Sign in
             </Link>
           </div>

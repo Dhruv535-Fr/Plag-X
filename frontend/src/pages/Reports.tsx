@@ -89,17 +89,11 @@ export default function Reports() {
 
   const fetchReports = async () => {
     try {
-      console.log('Fetching reports...');
       // Fetch recent reports (last 50 to group into sessions, then limit sessions)
       const response = await api.get('/reports?limit=50&sortBy=createdAt&sortOrder=desc');
-      console.log('Reports API response:', response.data);
       setReports(response.data.data.reports || []);
     } catch (error) {
       console.error('Error fetching reports:', error);
-      if (error.response) {
-        console.error('Response status:', error.response.status);
-        console.error('Response data:', error.response.data);
-      }
       setReports(mockReports); // Fallback to empty array
     } finally {
       setLoading(false);

@@ -46,7 +46,6 @@ const Settings = () => {
   const [privacy, setPrivacy] = useState({
     profileVisibility: "private",
     shareReports: false,
-    anonymousAnalytics: true,
   });
 
   const handleProfileUpdate = async () => {
@@ -418,21 +417,6 @@ const Settings = () => {
 
               <Separator />
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="anonymousAnalytics">Anonymous Analytics</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Help improve the platform with usage data
-                  </p>
-                </div>
-                <Switch
-                  id="anonymousAnalytics"
-                  checked={privacy.anonymousAnalytics}
-                  onCheckedChange={(checked) =>
-                    setPrivacy({ ...privacy, anonymousAnalytics: checked })
-                  }
-                />
-              </div>
             </CardContent>
           </Card>
         </div>
