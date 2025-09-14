@@ -188,6 +188,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    // Clear all analysis results for any user (since we're logging out)
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('analysisResults_') || key.startsWith('analysisErrors_')) {
+        localStorage.removeItem(key);
+      }
+    });
     localStorage.removeItem('token');
     dispatch({ type: 'LOGOUT' });
   };

@@ -26,8 +26,10 @@ import {
   Download,
   Calendar,
   Loader2,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import api from "@/lib/api";
 
 interface Report {
   _id: string;
@@ -87,23 +89,62 @@ export default function Reports() {
 
   const fetchReports = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5001/api/reports', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setReports(data.reports || []);
-      }
+      console.log('Fetching reports...');
+      // Fetch recent reports (last 50 to group into sessions, then limit sessions)
+      const response = await api.get('/reports?limit=50&sortBy=createdAt&sortOrder=desc');
+      console.log('Reports API response:', response.data);
+      setReports(response.data.data.reports || []);
     } catch (error) {
       console.error('Error fetching reports:', error);
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response data:', error.response.data);
+      }
       setReports(mockReports); // Fallback to empty array
     } finally {
       setLoading(false);
     }
+  };
+
+  // Group reports by analysis sessions (reports created within 5 minutes of each other)
+  // Limited to the last 5 sessions
+  const groupReportsBySessions = (reports: Report[]) => {
+    const sessions: { [key: string]: Report[] } = {};
+    const sortedReports = [...reports].sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    
+    sortedReports.forEach(report => {
+      const reportTime = new Date(report.createdAt).getTime();
+      let assigned = false;
+      
+      // Check if this report belongs to an existing session (within 5 minutes)
+      for (const sessionKey in sessions) {
+        const sessionTime = new Date(sessionKey).getTime();
+        if (Math.abs(reportTime - sessionTime) <= 5 * 60 * 1000) { // 5 minutes
+          sessions[sessionKey].push(report);
+          assigned = true;
+          break;
+        }
+      }
+      
+      // If not assigned to any session, create a new session
+      if (!assigned) {
+        sessions[report.createdAt] = [report];
+      }
+    });
+    
+    // Limit to the last 5 sessions
+    const sessionKeys = Object.keys(sessions)
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+      .slice(0, 5);
+    
+    const limitedSessions: { [key: string]: Report[] } = {};
+    sessionKeys.forEach(key => {
+      limitedSessions[key] = sessions[key];
+    });
+    
+    return limitedSessions;
   };
 
   const filteredReports = reports.filter(report => {
@@ -125,6 +166,11 @@ export default function Reports() {
     return matchesSearch && matchesLanguage && matchesVerdict;
   });
 
+  const reportSessions = groupReportsBySessions(filteredReports);
+
+  // Get all reports from the last 5 sessions for statistics
+  const recentSessionReports = Object.values(reportSessions).flat();
+
   const handleViewReport = (reportId: string) => {
     navigate(`/reports/${reportId}`);
   };
@@ -135,7 +181,7 @@ export default function Reports() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Reports</h1>
           <p className="text-muted-foreground mt-2">
-            View and analyze all plagiarism detection reports
+            View your last 5 analysis sessions and detailed comparison reports
           </p>
         </div>
         <Button variant="outline">
@@ -200,7 +246,8 @@ export default function Reports() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Reports</p>
-                <p className="text-2xl font-bold text-foreground">{filteredReports.length}</p>
+                <p className="text-2xl font-bold text-foreground">{recentSessionReports.length}</p>
+                <p className="text-xs text-muted-foreground">Last 5 sessions</p>
               </div>
               <div className="text-primary">
                 {loading ? <Loader2 className="h-8 w-8 animate-spin" /> : <Eye className="h-8 w-8" />}
@@ -215,7 +262,7 @@ export default function Reports() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">High Risk</p>
                 <p className="text-2xl font-bold text-similarity-high">
-                  {filteredReports.filter(r => getVerdict(r.analysis.overallSimilarityScore) === "high").length}
+                  {recentSessionReports.filter(r => getVerdict(r.analysis.overallSimilarityScore) === "high").length}
                 </p>
               </div>
               <div className="text-similarity-high">
@@ -233,8 +280,8 @@ export default function Reports() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Average Score</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {filteredReports.length > 0 ? 
-                    Math.round(filteredReports.reduce((sum, r) => sum + r.analysis.overallSimilarityScore, 0) / filteredReports.length) : 0}%
+                  {recentSessionReports.length > 0 ? 
+                    Math.round(recentSessionReports.reduce((sum, r) => sum + r.analysis.overallSimilarityScore, 0) / recentSessionReports.length) : 0}%
                 </p>
               </div>
               <div className="text-primary">
@@ -271,61 +318,98 @@ export default function Reports() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredReports.length === 0 ? (
+                {Object.keys(reportSessions).length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No reports found. Upload files to start plagiarism detection.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredReports.map((report) => {
-                    const file1 = report.files[0]?.originalName || 'Unknown';
-                    const file2 = report.files[1]?.originalName || 'Unknown';
-                    const language = report.files[0]?.language || report.analysis.detectedLanguages[0] || 'Unknown';
-                    const similarity = report.analysis.overallSimilarityScore;
-                    const date = new Date(report.createdAt).toLocaleDateString();
+                  <>
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-4 bg-muted/20">
+                        <div className="flex items-center justify-center space-x-2">
+                          <span className="text-sm font-medium text-muted-foreground">
+                            Showing {Object.keys(reportSessions).length} recent analysis sessions
+                          </span>
+                          <Badge variant="outline">{recentSessionReports.length} total comparisons</Badge>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {Object.entries(reportSessions).map(([sessionDate, sessionReports]) => {
+                    const sessionTime = new Date(sessionDate).toLocaleString();
+                    const avgSimilarity = sessionReports.reduce((sum, r) => sum + r.analysis.overallSimilarityScore, 0) / sessionReports.length;
+                    const languages = [...new Set(sessionReports.flatMap(r => r.analysis.detectedLanguages))].join(', ');
                     
                     return (
-                      <TableRow key={report._id} className="border-border">
-                        <TableCell>
-                          <div className="flex flex-col space-y-1">
-                            <span className="font-medium text-foreground">{file1}</span>
-                            <span className="text-sm text-muted-foreground">vs {file2}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={cn("text-xs", getLanguageColor(language))}>
-                            {language.toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {getSimilarityBadge(similarity)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={report.status === 'completed' ? 'default' : 'secondary'}>
-                            {report.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm text-muted-foreground">{date}</span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleViewReport(report._id)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                      <>
+                        <TableRow key={sessionDate} className="border-border bg-muted/30">
+                          <TableCell colSpan={6} className="font-semibold text-foreground">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <FileText className="h-4 w-4" />
+                                <span>Analysis Session - {sessionTime}</span>
+                                <Badge variant="outline">{sessionReports.length} comparisons</Badge>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-muted-foreground">Avg Similarity:</span>
+                                {getSimilarityBadge(Math.round(avgSimilarity))}
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {sessionReports.map((report) => {
+                          const file1 = report.files[0]?.originalName || 'Unknown';
+                          const file2 = report.files[1]?.originalName || 'Unknown';
+                          const language = report.files[0]?.language || report.analysis.detectedLanguages[0] || 'Unknown';
+                          const similarity = report.analysis.overallSimilarityScore;
+                          const date = new Date(report.createdAt).toLocaleDateString();
+                          
+                          return (
+                            <TableRow key={report._id} className="border-border">
+                              <TableCell className="pl-8">
+                                <div className="flex flex-col space-y-1">
+                                  <span className="font-medium text-foreground">{file1}</span>
+                                  <span className="text-sm text-muted-foreground">vs {file2}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={cn("text-xs", getLanguageColor(language))}>
+                                  {language.toUpperCase()}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {getSimilarityBadge(similarity)}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={report.status === 'completed' ? 'default' : 'secondary'}>
+                                  {report.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-muted-foreground">{date}</span>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex space-x-2">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => handleViewReport(report._id)}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm">
+                                    <Download className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </>
                     );
-                  })
+                  })}
+                  </>
                 )}
               </TableBody>
             </Table>

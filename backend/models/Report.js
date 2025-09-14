@@ -173,12 +173,15 @@ reportSchema.statics.getPublicReports = function(page = 1, limit = 10) {
 
 // Method to check if user can access this report
 reportSchema.methods.canUserAccess = function(userId) {
-  if (this.user.toString() === userId.toString()) return true;
+  // Handle both populated and non-populated user field
+  const reportUserId = this.user._id ? this.user._id.toString() : this.user.toString();
+  if (reportUserId === userId.toString()) return true;
   if (this.isPublic) return true;
   
-  return this.sharedWith.some(share => 
-    share.user.toString() === userId.toString()
-  );
+  return this.sharedWith.some(share => {
+    const shareUserId = share.user._id ? share.user._id.toString() : share.user.toString();
+    return shareUserId === userId.toString();
+  });
 };
 
 module.exports = mongoose.model('Report', reportSchema);

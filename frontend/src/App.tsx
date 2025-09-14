@@ -10,7 +10,6 @@ import Dashboard from "./pages/Dashboard";
 import Upload from "./pages/Upload";
 import Reports from "./pages/Reports";
 import ReportDetail from "./pages/ReportDetail";
-import Analytics from "./pages/Analytics";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Settings from "./pages/Settings";
@@ -56,13 +55,6 @@ const App = () => (
               <ProtectedRoute>
                 <AppLayout>
                   <ReportDetail />
-                </AppLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/analytics" element={
-              <ProtectedRoute>
-                <AppLayout>
-                  <Analytics />
                 </AppLayout>
               </ProtectedRoute>
             } />
