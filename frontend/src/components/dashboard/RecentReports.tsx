@@ -9,8 +9,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, FileCode } from "lucide-react";
+import { Eye, FileCode, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 interface Report {
   id: string;
@@ -27,76 +28,76 @@ interface RecentReportsProps {
   loading: boolean;
 }
 
-// DISPLAY similarity....
 function getSimilarityBadge(similarity: number) {
   if (similarity >= 85) {
-    return <Badge className="status-high">High ({similarity}%)</Badge>;
+    return <Badge className="status-high text-xs">High ({similarity}%)</Badge>;
   } else if (similarity >= 60) {
-    return <Badge className="status-medium">Medium ({similarity}%)</Badge>;
+    return <Badge className="status-medium text-xs">Medium ({similarity}%)</Badge>;
   } else {
-    return <Badge className="status-low">Low ({similarity}%)</Badge>;
+    return <Badge className="status-low text-xs">Low ({similarity}%)</Badge>;
   }
 }
 
 function getLanguageColor(language: string) {
-  const colors = {
-    "C++": "bg-blue-500/10 text-blue-500 border-blue-500/20",
-    "Python": "bg-green-500/10 text-green-500 border-green-500/20",
-    "Java": "bg-orange-500/10 text-orange-500 border-orange-500/20",
+  const colors: Record<string, string> = {
+    "C++": "bg-blue-50 text-blue-700 border-blue-200",
+    "Python": "bg-emerald-50 text-emerald-700 border-emerald-200",
+    "Java": "bg-orange-50 text-orange-700 border-orange-200",
   };
-  return colors[language as keyof typeof colors] || "bg-muted text-muted-foreground";
+  return colors[language] || "bg-muted text-muted-foreground border-border";
 }
 
 export function RecentReports({ reports, loading }: RecentReportsProps) {
+  const navigate = useNavigate();
+
   return (
-    <Card className="bg-gradient-card shadow-card border-border">
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <FileCode className="h-5 w-5 text-primary" />
-          <span>Recent Reports</span>
+    <Card className="bg-white border border-border shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between pb-4">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold">
+          <FileCode className="h-4 w-4 text-primary" />
+          Recent Reports
         </CardTitle>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/reports')} className="text-sm text-primary h-8 gap-1">
+          View all <ArrowRight className="h-3 w-3" />
+        </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0">
         {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="text-muted-foreground">Loading recent reports...</div>
+          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+            Loading recent reports...
           </div>
         ) : reports.length === 0 ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="text-center">
-              <FileCode className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-              <p className="text-muted-foreground">No reports yet</p>
-              <p className="text-sm text-muted-foreground">Upload files to start analyzing</p>
+          <div className="flex flex-col items-center justify-center py-12 text-center px-6">
+            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+              <FileCode className="h-6 w-6 text-muted-foreground" />
             </div>
+            <p className="text-sm font-medium text-foreground">No reports yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Upload files to start analyzing</p>
           </div>
         ) : (
           <Table>
             <TableHeader>
-              <TableRow className="border-border">
-                <TableHead>Files</TableHead>
-                <TableHead>Language</TableHead>
-                <TableHead>Similarity</TableHead>
-                <TableHead>Method</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="w-20">Action</TableHead>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="text-xs font-medium text-muted-foreground pl-6">Files</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Language</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Similarity</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Method</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">Date</TableHead>
+                <TableHead className="w-12 pr-6"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {reports.map((report) => (
-                <TableRow key={report.id} className="border-border">
-                  <TableCell>
-                    <div className="flex flex-col space-y-1">
-                      <span className="font-medium text-foreground">{report.files}</span>
-                    </div>
+                <TableRow key={report.id} className="border-border hover:bg-muted/30 cursor-pointer" onClick={() => navigate(`/reports/${report.id}`)}>
+                  <TableCell className="pl-6">
+                    <span className="text-sm font-medium text-foreground">{report.files}</span>
                   </TableCell>
                   <TableCell>
-                    <Badge className={cn("text-xs", getLanguageColor(report.language))}>
+                    <Badge variant="outline" className={cn("text-xs border", getLanguageColor(report.language))}>
                       {report.language}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    {getSimilarityBadge(report.similarity)}
-                  </TableCell>
+                  <TableCell>{getSimilarityBadge(report.similarity)}</TableCell>
                   <TableCell>
                     <span className="text-sm text-muted-foreground">{report.method}</span>
                   </TableCell>
@@ -105,9 +106,9 @@ export function RecentReports({ reports, loading }: RecentReportsProps) {
                       {new Date(report.date).toLocaleDateString()}
                     </span>
                   </TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm">
-                      <Eye className="h-4 w-4" />
+                  <TableCell className="pr-6">
+                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                      <Eye className="h-3.5 w-3.5" />
                     </Button>
                   </TableCell>
                 </TableRow>

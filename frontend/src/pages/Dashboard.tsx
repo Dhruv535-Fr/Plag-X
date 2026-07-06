@@ -13,6 +13,7 @@ import {
   Code,
   Upload,
   ArrowRight,
+  Plus,
 } from "lucide-react";
 
 interface DashboardStats {
@@ -44,13 +45,6 @@ export default function Dashboard() {
   const [recentReports, setRecentReports] = useState<RecentReport[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const currentDate = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
   useEffect(() => {
     fetchDashboardData();
   }, []);
@@ -65,60 +59,48 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
-      // Set default empty state on error
-      setStats({
-        totalFilesChecked: 0,
-        averageSimilarity: 0,
-        casesFlagged: 0,
-        languagesSupported: 3
-      });
+      setStats({ totalFilesChecked: 0, averageSimilarity: 0, casesFlagged: 0, languagesSupported: 3 });
       setRecentReports([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUploadClick = () => {
-    navigate('/upload');
-  };
-
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       {/* Welcome Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">
-            Welcome back, {user?.firstName || 'User'} 👋
+          <h1 className="text-2xl font-bold text-foreground">
+            Welcome back, {user?.firstName || 'User'}
           </h1>
-          <p className="text-muted-foreground mt-2">{currentDate}</p>
+          <p className="text-sm text-muted-foreground mt-1">Here's what's happening with your analyses today</p>
         </div>
-        <Button 
-          onClick={handleUploadClick}
-          className="bg-gradient-primary hover:shadow-glow transition-all"
+        <Button
+          onClick={() => navigate('/upload')}
+          className="bg-primary hover:bg-primary/90 text-white gap-2"
         >
-          <Upload className="mr-2 h-4 w-4" />
-          Upload Code
-          <ArrowRight className="ml-2 h-4 w-4" />
+          <Plus className="h-4 w-4" />
+          New Analysis
         </Button>
       </div>
 
-      {/* Stats Cards - Updated with dynamic data */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Total Files Checked"
           value={loading ? "..." : stats.totalFilesChecked.toString()}
           description="Code files analyzed"
-          icon={<FileCheck className="h-4 w-4" />}
-          trend={stats.totalFilesChecked > 0 ? {
-            value: 0,
-            isPositive: true,
-          } : undefined}
+          icon={<FileCheck className="h-5 w-5 text-blue-600" />}
+          iconBg="bg-blue-50"
+          trend={stats.totalFilesChecked > 0 ? { value: 0, isPositive: true } : undefined}
         />
         <StatsCard
           title="Average Similarity"
           value={loading ? "..." : `${Math.round(stats.averageSimilarity * 100)}%`}
           description="Across all comparisons"
-          icon={<TrendingUp className="h-4 w-4" />}
+          icon={<TrendingUp className="h-5 w-5 text-emerald-600" />}
+          iconBg="bg-emerald-50"
           trend={stats.averageSimilarity > 0 ? {
             value: Math.round(stats.averageSimilarity * 100),
             isPositive: stats.averageSimilarity < 0.5,
@@ -128,7 +110,8 @@ export default function Dashboard() {
           title="Cases Flagged"
           value={loading ? "..." : stats.casesFlagged.toString()}
           description="High similarity detected"
-          icon={<AlertTriangle className="h-4 w-4" />}
+          icon={<AlertTriangle className="h-5 w-5 text-violet-600" />}
+          iconBg="bg-violet-50"
           trend={stats.casesFlagged > 0 ? {
             value: Math.round((stats.casesFlagged / Math.max(stats.totalFilesChecked, 1)) * 100),
             isPositive: false,
@@ -138,34 +121,33 @@ export default function Dashboard() {
           title="Languages Supported"
           value="3"
           description="C++, Java, Python"
-          icon={<Code className="h-4 w-4" />}
+          icon={<Code className="h-5 w-5 text-orange-500" />}
+          iconBg="bg-orange-50"
         />
       </div>
 
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Recent Reports - Takes 2 columns - Shows actual comparison results */}
+        {/* Recent Reports */}
         <div className="lg:col-span-2">
           <RecentReports reports={recentReports} loading={loading} />
         </div>
 
-        {/* Quick Actions Sidebar */}
-        <div className="space-y-6">
-          {/* Start New Analysis Card */}
-          <Card className="bg-gradient-primary shadow-glow border-0">
-            <CardHeader>
-              <CardTitle className="text-primary-foreground">
-                Start New Analysis
-              </CardTitle>
+        {/* Quick Actions & Detection Methods */}
+        <div className="space-y-4">
+          {/* Start New Analysis */}
+          <Card className="bg-primary border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-white text-base">Start New Analysis</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-primary-foreground/80 text-sm mb-4">
-                Upload your code files to detect potential plagiarism using our advanced algorithms.
+              <p className="text-white/80 text-sm mb-4">
+                Upload code files to detect potential plagiarism using advanced algorithms.
               </p>
-              <Button 
-                onClick={handleUploadClick}
-                variant="secondary" 
-                className="w-full bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+              <Button
+                onClick={() => navigate('/upload')}
+                variant="secondary"
+                className="w-full bg-white text-primary hover:bg-white/90 font-medium"
               >
                 <Upload className="mr-2 h-4 w-4" />
                 Upload Files
@@ -173,30 +155,28 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Detection Methods Card - Unchanged as requested */}
-          <Card className="bg-gradient-card shadow-card">
-            <CardHeader>
-              <CardTitle className="text-foreground">Detection Methods</CardTitle>
+          {/* Detection Methods */}
+          <Card className="bg-white border border-border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-foreground text-base">Detection Methods</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Jaccard Similarity</span>
-                  <div className="h-2 w-16 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full w-3/4 bg-gradient-warning"></div>
-                  </div>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Jaccard Similarity</span>
+                <div className="h-1.5 w-20 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full w-3/4 bg-amber-400 rounded-full"></div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">AST Analysis</span>
-                  <div className="h-2 w-16 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full w-4/5 bg-gradient-primary"></div>
-                  </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">AST Analysis</span>
+                <div className="h-1.5 w-20 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full w-4/5 bg-primary rounded-full"></div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Combined Score</span>
-                  <div className="h-2 w-16 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full w-5/6 bg-gradient-success"></div>
-                  </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Combined Score</span>
+                <div className="h-1.5 w-20 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full w-5/6 bg-emerald-500 rounded-full"></div>
                 </div>
               </div>
             </CardContent>

@@ -406,11 +406,11 @@ export default function Upload() {
   const fileGroups = groupFilesByExtension(uploadedFiles);
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Upload & Analyze</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-2xl font-bold text-foreground">Upload & Analyze</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Upload your code files to detect plagiarism and analyze similarities.
         </p>
       </div>
@@ -419,7 +419,7 @@ export default function Upload() {
         {/* Main Upload Area */}
         <div className="lg:col-span-2 space-y-6">
           {/* File Upload */}
-          <Card className="bg-gradient-card shadow-card">
+          <Card className="bg-white border border-border shadow-sm">
             <CardHeader>
               <CardTitle className="text-foreground">File Upload</CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -433,7 +433,7 @@ export default function Upload() {
                 className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
                   isDragActive
                     ? "border-primary bg-primary/5"
-                    : "border-muted-foreground/25 hover:border-primary/50"
+                    : "border-border hover:border-primary/50 hover:bg-muted/30"
                 }`}
               >
                 <input {...getInputProps()} />
@@ -504,7 +504,7 @@ export default function Upload() {
                 <Button
                   onClick={handleAnalysis}
                   disabled={uploadedFiles.length < 2 || isAnalyzing}
-                  className="bg-gradient-primary hover:shadow-glow transition-all"
+                  className="bg-primary hover:bg-primary/90"
                 >
                   {isAnalyzing ? (
                     <>
@@ -557,7 +557,7 @@ export default function Upload() {
 
           {/* Analysis Errors */}
           {analysisErrors.length > 0 && (
-            <Card className="bg-gradient-card shadow-card border-yellow-500/20">
+            <Card className="bg-white border border-amber-200 shadow-sm">
               <CardHeader>
                 <CardTitle className="text-foreground flex items-center">
                   <AlertTriangle className="mr-2 h-4 w-4 text-yellow-500" />
@@ -595,7 +595,7 @@ export default function Upload() {
 
           {/* Analysis Results */}
           {analysisResults.length > 0 && (
-            <Card className="bg-gradient-card shadow-card">
+            <Card className="bg-white border border-border shadow-sm">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -661,7 +661,7 @@ export default function Upload() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Supported Languages */}
-          <Card className="bg-gradient-card shadow-card">
+          <Card className="bg-white border border-border shadow-sm">
             <CardHeader>
               <CardTitle className="text-foreground">Supported Languages</CardTitle>
             </CardHeader>
@@ -684,7 +684,7 @@ export default function Upload() {
           </Card>
 
           {/* Upload Guidelines */}
-          <Card className="bg-gradient-card shadow-card">
+          <Card className="bg-white border border-border shadow-sm">
             <CardHeader>
               <CardTitle className="text-foreground flex items-center">
                 <AlertTriangle className="mr-2 h-4 w-4" />

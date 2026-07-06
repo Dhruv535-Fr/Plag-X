@@ -13,7 +13,7 @@ const NotFound = () => {
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
-      <Card className="bg-gradient-card shadow-card max-w-md w-full">
+      <Card className="bg-white border border-border shadow-sm max-w-md w-full">
         <CardContent className="p-8 text-center">
           <div className="flex justify-center mb-6">
             <div className="p-4 bg-destructive/10 rounded-full">
@@ -25,7 +25,7 @@ const NotFound = () => {
           <p className="text-muted-foreground mb-6">
             The page you're looking for doesn't exist or has been moved.
           </p>
-          <Button asChild className="bg-gradient-primary hover:shadow-glow">
+          <Button asChild className="bg-primary hover:bg-primary/90">
             <a href="/">
               <Home className="mr-2 h-4 w-4" />
               Return to Dashboard

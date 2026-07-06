@@ -4,81 +4,72 @@
 @tailwind components;
 @tailwind utilities;
 
-/* PlagX Design System - Modern Code Analysis Theme */
+/* PlagX Design System - Clean Light Theme */
 
 @layer base {
   :root {
-    /* Core Dark Theme - Primary colors */
-    --background: 220 26% 8%;
-    --foreground: 220 10% 95%;
+    /* Light Theme */
+    --background: 220 14% 96%;
+    --foreground: 220 26% 10%;
 
-    --card: 220 26% 10%;
-    --card-foreground: 220 10% 95%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 26% 10%;
 
-    --popover: 220 26% 12%;
-    --popover-foreground: 220 10% 95%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 26% 10%;
 
-    /* Brand Purple - Tech/Code Analysis Theme */
-    --primary: 262 80% 60%;
-    --primary-foreground: 220 26% 8%;
-    --primary-glow: 262 80% 70%;
+    /* Brand Blue */
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Subtle Backgrounds */
-    --secondary: 220 26% 14%;
-    --secondary-foreground: 220 10% 85%;
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 220 26% 30%;
 
-    --muted: 220 26% 16%;
-    --muted-foreground: 220 8% 65%;
+    --muted: 220 14% 94%;
+    --muted-foreground: 220 8% 50%;
 
-    --accent: 220 26% 18%;
-    --accent-foreground: 220 10% 85%;
+    --accent: 220 14% 91%;
+    --accent-foreground: 220 26% 20%;
 
     /* Status Colors - Plagiarism Detection */
-    --high-similarity: 0 84% 60%;      /* Red - High plagiarism */
-    --medium-similarity: 43 96% 60%;   /* Yellow - Medium */
-    --low-similarity: 142 76% 47%;     /* Green - Low/Safe */
-    
+    --high-similarity: 0 84% 60%;
+    --medium-similarity: 43 96% 50%;
+    --low-similarity: 142 76% 40%;
+
     --destructive: 0 84% 60%;
-    --destructive-foreground: 220 26% 8%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 220 26% 18%;
-    --input: 220 26% 16%;
-    --ring: 262 80% 60%;
+    --border: 220 13% 89%;
+    --input: 220 13% 89%;
+    --ring: 221 83% 53%;
 
-    --radius: 0.75rem;
-
-    /* Code Syntax Colors */
-    --code-bg: 220 26% 12%;
-    --code-comment: 220 8% 55%;
-    --code-keyword: 262 80% 70%;
-    --code-string: 142 76% 55%;
-    --code-number: 43 96% 65%;
+    --radius: 0.625rem;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(262 80% 60%), hsl(262 80% 70%));
-    --gradient-card: linear-gradient(135deg, hsl(220 26% 12%), hsl(220 26% 10%));
-    --gradient-success: linear-gradient(135deg, hsl(142 76% 47%), hsl(142 76% 57%));
-    --gradient-warning: linear-gradient(135deg, hsl(43 96% 60%), hsl(43 96% 70%));
+    --gradient-primary: linear-gradient(135deg, hsl(221 83% 53%), hsl(221 83% 63%));
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 100%), hsl(220 14% 98%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 40%), hsl(142 76% 50%));
+    --gradient-warning: linear-gradient(135deg, hsl(43 96% 50%), hsl(43 96% 60%));
     --gradient-danger: linear-gradient(135deg, hsl(0 84% 60%), hsl(0 84% 70%));
 
     /* Shadows */
-    --shadow-elegant: 0 10px 30px -10px hsl(262 80% 20% / 0.3);
-    --shadow-glow: 0 0 40px hsl(262 80% 60% / 0.2);
-    --shadow-card: 0 8px 32px hsl(220 26% 5% / 0.6);
+    --shadow-elegant: 0 4px 20px -4px hsl(221 83% 53% / 0.15);
+    --shadow-glow: 0 0 20px hsl(221 83% 53% / 0.15);
+    --shadow-card: 0 1px 3px hsl(220 26% 10% / 0.08), 0 1px 2px hsl(220 26% 10% / 0.06);
 
     /* Animations */
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-spring: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-spring: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 
-    /* Sidebar */
-    --sidebar-background: 220 26% 6%;
-    --sidebar-foreground: 220 10% 85%;
-    --sidebar-primary: 262 80% 60%;
-    --sidebar-primary-foreground: 220 26% 6%;
-    --sidebar-accent: 220 26% 12%;
-    --sidebar-accent-foreground: 220 10% 85%;
-    --sidebar-border: 220 26% 14%;
-    --sidebar-ring: 262 80% 60%;
+    /* Sidebar - dark navy */
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 210 40% 80%;
+    --sidebar-primary: 221 83% 63%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 47% 16%;
+    --sidebar-accent-foreground: 210 40% 90%;
+    --sidebar-border: 222 47% 16%;
+    --sidebar-ring: 221 83% 53%;
   }
 }
 

@@ -119,7 +119,7 @@ export default function ReportDetail() {
   const StatusIcon = status.icon;
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
@@ -133,8 +133,8 @@ export default function ReportDetail() {
             Back to Upload
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Report Analysis</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl font-bold text-foreground">Report Analysis</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
               {file1?.originalName || 'Unknown'} vs {file2?.originalName || 'Unknown'}
             </p>
           </div>
@@ -153,22 +153,22 @@ export default function ReportDetail() {
 
       {/* Similarity Score Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className={cn("bg-gradient-card shadow-card", similarity >= 80 ? "border-similarity-high" : similarity >= 50 ? "border-similarity-medium" : "border-similarity-low")}>
+        <Card className={cn("bg-white border shadow-sm", similarity >= 80 ? "border-red-200" : similarity >= 50 ? "border-amber-200" : "border-emerald-200")}>
           <CardContent className="p-6">
             <div className="flex items-center space-x-3">
-              <div className={cn("p-3 rounded-full", similarity >= 80 ? "bg-similarity-high/10" : similarity >= 50 ? "bg-similarity-medium/10" : "bg-similarity-low/10")}>
-                <StatusIcon className={cn("h-6 w-6", status.color)} />
+              <div className={cn("p-3 rounded-full", similarity >= 80 ? "bg-red-50" : similarity >= 50 ? "bg-amber-50" : "bg-emerald-50")}>
+                <StatusIcon className={cn("h-6 w-6", similarity >= 80 ? "text-red-500" : similarity >= 50 ? "text-amber-500" : "text-emerald-600")} />
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Combined Score</p>
-                <p className={cn("text-2xl font-bold", status.color)}>{similarity}%</p>
-                <p className={cn("text-xs", status.color)}>{status.label}</p>
+                <p className={cn("text-2xl font-bold", similarity >= 80 ? "text-red-500" : similarity >= 50 ? "text-amber-500" : "text-emerald-600")}>{similarity}%</p>
+                <p className={cn("text-xs", similarity >= 80 ? "text-red-500" : similarity >= 50 ? "text-amber-500" : "text-emerald-600")}>{status.label}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-card shadow-card">
+        <Card className="bg-white border border-border shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-center space-x-3">
               <div className="p-3 rounded-full bg-primary/10">
@@ -183,10 +183,10 @@ export default function ReportDetail() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-card shadow-card">
+        <Card className="bg-white border border-border shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-center space-x-3">
-              <div className="p-3 rounded-full bg-blue-500/10">
+              <div className="p-3 rounded-full bg-blue-50">
                 <GitCompare className="h-6 w-6 text-blue-500" />
               </div>
               <div>
@@ -198,11 +198,11 @@ export default function ReportDetail() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-card shadow-card">
+        <Card className="bg-white border border-border shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-center space-x-3">
-              <div className="p-3 rounded-full bg-purple-500/10">
-                <FileCode className="h-6 w-6 text-purple-500" />
+              <div className="p-3 rounded-full bg-violet-50">
+                <FileCode className="h-6 w-6 text-violet-500" />
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Files Analyzed</p>
@@ -217,7 +217,7 @@ export default function ReportDetail() {
       {/* Code Comparison */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* File 1 */}
-        <Card className="bg-gradient-card shadow-card">
+        <Card className="bg-white border border-border shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center space-x-2">
@@ -243,7 +243,7 @@ export default function ReportDetail() {
         </Card>
 
         {/* File 2 */}
-        <Card className="bg-gradient-card shadow-card">
+        <Card className="bg-white border border-border shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center space-x-2">
@@ -270,7 +270,7 @@ export default function ReportDetail() {
       </div>
 
       {/* Analysis Details */}
-      <Card className="bg-gradient-card shadow-card">
+      <Card className="bg-white border border-border shadow-sm">
         <CardHeader>
           <CardTitle>Analysis Details</CardTitle>
         </CardHeader>
@@ -293,7 +293,7 @@ export default function ReportDetail() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Overall Similarity:</span>
-                  <Badge className={status.color}>{similarity}%</Badge>
+                  <Badge className={cn("text-white", similarity >= 80 ? "bg-red-500" : similarity >= 50 ? "bg-amber-500" : "bg-emerald-600")}>{similarity}%</Badge>
                 </div>
               </div>
             </div>
