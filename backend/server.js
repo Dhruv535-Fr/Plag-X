@@ -66,6 +66,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Root route
+app.get('/', (req, res) => {
+  res.send('PlagX Backend API is running!');
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

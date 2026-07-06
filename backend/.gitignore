@@ -18,6 +18,9 @@ dist/
 .env.test.local
 .env.production.local
 
+# Uploads (user-submitted files)
+uploads/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

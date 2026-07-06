@@ -388,7 +388,7 @@ router.post('/analyze', protect, upload.array('files', 20), async (req, res) => 
     res.status(500).json({
       success: false,
       message: 'Analysis failed',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

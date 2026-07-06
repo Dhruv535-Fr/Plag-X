@@ -55,7 +55,7 @@ router.post('/', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error creating report',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -157,7 +157,7 @@ router.get('/', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching reports',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -202,7 +202,7 @@ router.get('/public', optionalAuth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching public reports',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -250,7 +250,7 @@ router.get('/:id', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching report',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -297,7 +297,7 @@ router.put('/:id', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating report',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -340,7 +340,7 @@ router.delete('/:id', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error deleting report',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -415,7 +415,7 @@ router.post('/:id/share', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error sharing report',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

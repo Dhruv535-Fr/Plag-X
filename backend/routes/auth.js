@@ -75,7 +75,7 @@ router.post('/register', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error creating user',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -122,7 +122,7 @@ router.post('/login', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error during login',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -144,7 +144,7 @@ router.get('/me', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching user profile',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -197,7 +197,7 @@ router.put('/profile', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating profile',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -239,7 +239,7 @@ router.put('/password', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating password',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

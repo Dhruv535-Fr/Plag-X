@@ -21,7 +21,7 @@ router.get('/profile', protect, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching user profile',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -71,7 +71,7 @@ router.get('/', protect, restrictTo('admin'), async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching users',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
